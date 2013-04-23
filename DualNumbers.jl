@@ -14,7 +14,13 @@ FloatComponent = Union{FloatScalar, FloatVector, FloatMatrix}
 immutable DualNum{T<:FloatComponent} 
   st::T # standard part
   di::T # differential part
-  DualNum(s::T,d::T)=(for i=1:2;assert(size(s,i)==size(d,i);end;new(s,d))
+  function DualNum(s::T,d::T)
+    n=ndims(s)
+	assert(n==ndims(d)<=2,"dimension mismatch")
+	for i=1:n;
+	  assert(size(s,i)==size(d,i),"size mismatch in dimension $i")
+	end
+	return new(s,d)
 end
 
 DualNum(s::FloatComponent,d::FloatComponent) = DualNum(promote(s,d)...) # make sure parts match
@@ -39,7 +45,7 @@ zero{R}(::Type(DualNum{R}))=DualNum{R}(zero(R),zero(R))
 one{R}(::Type(DualNum{R}))=DualNum{R}(one(R),zero(R)) 
 
 
-
+########## promotion and conversion (may not be used that much if operators do their job) #############
 # trivial conversion
 convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
 # conversion from one DualNum flavour to another
@@ -57,6 +63,19 @@ promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{Dua
     DualNum{promote_type(T,S)}
 
 
+# some general matrix wiring
+length(x::DualMat) = length(x.va)
+size(x::DualMat,ii...) = size(x.va,ii...)
+getindex(x::DualMat,ii...) = DualMat(getindex(x.va,ii...),getindex(x.di,ii...) 
+setindex!{T<:FloatMatrix}(D::DualMat{T},S::DualMat{T},ii...) = (setindex!(D.va,S.va);setindex!(D.di,S.di);D)
+ndims(x::DualMat) = ndims(x.va)	
+reshape{T<:FloatMatrix}(x::DualMat{T},ii...) = DualMat(reshape(x.va,ii...),reshape(x.di,ii...)) 
+==(x::DualMat,y::DualMat) = (x.va==y.va) && (x.di==y.di) 
+isequal(x::DualMat,y::DualMat) = isequal(x.va,y.va) && isequal(x.di,y.di) 
+copy(x::DualMat) = DualMat(copy(x.va),copy(x.di))
+
+
+############ operator library ###################
 
 #unary plus and minus
 +(x::DualNum) = X
