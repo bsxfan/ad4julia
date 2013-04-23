@@ -7,7 +7,9 @@ export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
 FloatScalar = Union(Float64, Complex{Float64}, Float32, Complex{Float32})
 FloatVector = Union(Array{Float64,1}, Array{Complex{Float64,1}}, Array{Float32,1}, Array{Complex{Float32,1}})
-FloatMatrix = Union(Array{Float64,2}, Array{Complex{Float64,2}}, Array{Float32,2}, Array{Complex{Float32,2}}, FloatVector)
+# strictly a 2-dim matrix
+FloatMatrix2 = Union(Array{Float64,2}, Array{Complex{Float64,2}}, Array{Float32,2}, Array{Complex{Float32,2}})
+FloatMatrix = Union(FloatMatrix2, FloatVector)
 FloatComponent = Union{FloatScalar, FloatVector, FloatMatrix}
 
 
@@ -21,6 +23,7 @@ immutable DualNum{T<:FloatComponent}
 	  assert(size(s,i)==size(d,i),"size mismatch in dimension $i")
 	end
 	return new(s,d)
+  end
 end
 
 DualNum(s::FloatComponent,d::FloatComponent) = DualNum(promote(s,d)...) # make sure parts match
@@ -64,22 +67,29 @@ promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{Dua
 
 
 # some general matrix wiring
-length(x::DualMat) = length(x.va)
-size(x::DualMat,ii...) = size(x.va,ii...)
-getindex(x::DualMat,ii...) = DualMat(getindex(x.va,ii...),getindex(x.di,ii...) 
-setindex!{T<:FloatMatrix}(D::DualMat{T},S::DualMat{T},ii...) = (setindex!(D.va,S.va);setindex!(D.di,S.di);D)
-ndims(x::DualMat) = ndims(x.va)	
-reshape{T<:FloatMatrix}(x::DualMat{T},ii...) = DualMat(reshape(x.va,ii...),reshape(x.di,ii...)) 
-==(x::DualMat,y::DualMat) = (x.va==y.va) && (x.di==y.di) 
-isequal(x::DualMat,y::DualMat) = isequal(x.va,y.va) && isequal(x.di,y.di) 
-copy(x::DualMat) = DualMat(copy(x.va),copy(x.di))
+length(x::DualNum) = length(x.st)
+size(x::DualNum,ii...) = size(x.st,ii...)
+getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...) 
+setindex!{T<:FloatMatrix}(D::DualNum{T},S::DualNum{T},ii...) = (setindex!(D.st,S.st);setindex!(D.di,S.di);D)
+ndims(x::DualNum) = ndims(x.st)	
+reshape{T<:FloatMatrix}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
+==(x::DualNum,y::DualNum) = (x.st==y.st) && (x.di==y.di) 
+isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
+copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
+cat(k::Integer,x::DualNum,y::DualNum) = DualNum(cat(k,x.st,y.st),cat(k,x.di,y.di))
+cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st),cat(k,x.di,y.di,z,di))
+#bsxfun
+#end??
+
 
 
 ############ operator library ###################
 
-#unary plus and minus
+#unary 
 +(x::DualNum) = X
 -(x::DualNum) = DualNum(-x.st,-x.di)
+'(x::DualNum) = DualNum(x.st',x.di')
+.'(x::DualNum) = DualNum(x.st.',x.di.')
 
 +(x::DualNum,y::DualNum) = DualNum(x.st+y.st, x.di+y.di)
 +(x::DualNum,y::FloatComponent) = DualNum(x.st+y, x.di)
@@ -97,7 +107,6 @@ copy(x::DualMat) = DualMat(copy(x.va),copy(x.di))
 *(x::DualNum,y::FloatComponent) = DualNum(x.st*y, x.di*y)
 *(x::FloatComponent,y::DualNum) = DualNum(x*y.st, x*y.di)
 
-#/(a::DualNum,z::Complex) = invoke(/,(DualNum,FloatComponent),a,z)  # to handle ambiguity elsewhere
 /(a::DualNum,b::DualNum) = (y=a.st/b.st;DualNum(y, (a.di - y*b.di)/b.st))
 /(a::DualNum,b::FloatComponent) = (y=a.st/b;DualNum(y, a.di /b))
 /(a::FloatComponent,b::DualNum) = (y=a/b.st;DualNum(y, - y*b.di/b.st))
@@ -112,8 +121,6 @@ copy(x::DualMat) = DualMat(copy(x.va),copy(x.di))
 ./(a::DualNum,b::FloatComponent) = (y=a.st./b;DualNum(y, a.di./b))
 ./(a::FloatComponent,b::DualNum) = (y=a./b.st;DualNum(y, - y.*b.di./b.st))
 
-#^(a::DualNum,z::Rational) = invoke(^,(DualNum,FloatComponent),a,z)  # to handle ambiguity elsewhere
-#^(a::DualNum,z::Integer) = invoke(^,(DualNum,FloatComponent),a,z)  # to handle ambiguity elsewhere
 function .^(a::DualNum,b::DualNum)
   y = a.st.^b.st
   dyda = b.st.*a.st.^(b.st-1) # derivative of a^b wrt a
@@ -139,6 +146,34 @@ const du = DualNum(0.0,1.0) # differential unit
 
 
 ######## Function Library #######################
+sum(x::DualNum,ii...) = DualNum(sum(x.st,ii...),sum(x.di,ii...))
+trace(x::DualNum,ii...) = DualNum(trace(x.st,ii...),trace(x.di,ii...))
+diag{T<:FloatMatrix}(x::DualNum{T},k...) = DualNum(diag(x.st,k...),diag(x.di,k...))
+diagm{T<:FloatMatrix}(x::DualNum{T},k...) = DualNum(diagm(x.st,k...),diagm(x.di,k...))
+
+diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::DualNum{X},y::DualNum{Y}) = 
+    DualNum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
+diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::DualNum{X},y::Y) = 
+    DualNum(diagmm(x.st,y),diagmm(x.di,y))
+diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::X,y::DualNum{Y}) = 
+    DualNum(diagmm(x,y.st),diagmm(x,y.di))
+
+diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::DualNum{X},y::DualNum{Y}) = 
+    DualNum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
+diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::DualNum{X},y::Y) = 
+    DualNum(diagmm(x.st,y),diagmm(x.di,y))
+diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::X,y::DualNum{Y}) = 
+    DualNum(diagmm(x,y.st),diagmm(x,y.di))
+
+inv{T<:FloatMatrix2}(x::DualMat{T}) = (y=inv(x.st);DualMat(y,-y*x.di*y))
+det{T<:FloatMatrix2}(x::DualMat{T}) = (LU=lufact(x.st);y=det(LU);DualMat(y,y*dot(vec(inv(LU)),vec(x.di.'))))
+
+
+#chol
+#lu
+
+
+
 log(x::DualNum) = DualNum(log(x.st),x.di./x.st)
 exp(x::DualNum) = (y=exp(x.st);DualNum(y,x.di.*y))
 
