@@ -6,11 +6,11 @@ export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
 
 FloatScalar = Union(Float64, Complex{Float64}, Float32, Complex{Float32})
-FloatVector = Union(Array{Float64,1}, Array{Complex{Float64,1}}, Array{Float32,1}, Array{Complex{Float32,1}})
-# strictly a 2-dim matrix
-FloatMatrix2 = Union(Array{Float64,2}, Array{Complex{Float64,2}}, Array{Float32,2}, Array{Complex{Float32,2}})
+FloatVector = Union(Array{Float64,1}, Array{Complex{Float64},1}, Array{Float32,1}, Array{Complex{Float32},1})
+# strictly 2-dim matrix
+FloatMatrix2 = Union(Array{Float64,2}, Array{Complex{Float64},2}, Array{Float32,2}, Array{Complex{Float32},2})
 FloatMatrix = Union(FloatMatrix2, FloatVector)
-FloatComponent = Union{FloatScalar, FloatVector, FloatMatrix}
+FloatComponent = Union(FloatScalar, FloatVector, FloatMatrix)
 
 
 immutable DualNum{T<:FloatComponent} 
@@ -44,8 +44,8 @@ complex2dual{T<:FloatingPoint}(z::Complex{T}) = dualnum(real(z),imag(z)*1e20)
 # return DualNum representing 0 or 1 of same flavour as x 
 zero{R}(x::DualNum{R})=DualNum{R}(zero(R),zero(R)) 
 one{R}(x::DualNum{R})=DualNum{R}(one(R),zero(R)) 
-zero{R}(::Type(DualNum{R}))=DualNum{R}(zero(R),zero(R)) 
-one{R}(::Type(DualNum{R}))=DualNum{R}(one(R),zero(R)) 
+zero{R}(::Type{DualNum{R}})=DualNum{R}(zero(R),zero(R)) 
+one{R}(::Type{DualNum{R}})=DualNum{R}(one(R),zero(R)) 
 
 
 ########## promotion and conversion (may not be used that much if operators do their job) #############
@@ -69,8 +69,9 @@ promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{Dua
 # some general matrix wiring
 length(x::DualNum) = length(x.st)
 size(x::DualNum,ii...) = size(x.st,ii...)
-getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...) 
-setindex!{T<:FloatMatrix}(D::DualNum{T},S::DualNum{T},ii...) = (setindex!(D.st,S.st);setindex!(D.di,S.di);D)
+getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...)) 
+setindex!{T<:FloatMatrix}(D::DualNum{T},S::DualNum{T},ii...) = 
+    (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
 ndims(x::DualNum) = ndims(x.st)	
 reshape{T<:FloatMatrix}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
 ==(x::DualNum,y::DualNum) = (x.st==y.st) && (x.di==y.di) 
@@ -78,6 +79,7 @@ isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di)
 copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
 cat(k::Integer,x::DualNum,y::DualNum) = DualNum(cat(k,x.st,y.st),cat(k,x.di,y.di))
 cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st),cat(k,x.di,y.di,z,di))
+
 #bsxfun
 #end??
 
@@ -88,8 +90,8 @@ cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st)
 #unary 
 +(x::DualNum) = X
 -(x::DualNum) = DualNum(-x.st,-x.di)
-'(x::DualNum) = DualNum(x.st',x.di')
-.'(x::DualNum) = DualNum(x.st.',x.di.')
+ctranspose(x::DualNum) = DualNum(x.st',x.di')
+transpose(x::DualNum) = DualNum(x.st.',x.di.')
 
 +(x::DualNum,y::DualNum) = DualNum(x.st+y.st, x.di+y.di)
 +(x::DualNum,y::FloatComponent) = DualNum(x.st+y, x.di)
@@ -138,9 +140,9 @@ function .^(a::FloatComponent,b::DualNum)
   return DualNum(y, b.di.*dydb)
 end
 
-function ^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::DualNum{B}) = a.^b
-function ^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::B) = a.^b
-function ^{A<:FloatScalar,B<:FloatScalar}(a::A,b::DualNum{B}) = a.^b
+^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::DualNum{B}) = a.^b
+^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::B) = a.^b
+^{A<:FloatScalar,B<:FloatScalar}(a::A,b::DualNum{B}) = a.^b
 
 const du = DualNum(0.0,1.0) # differential unit
 
