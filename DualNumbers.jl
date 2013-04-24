@@ -9,10 +9,18 @@ FloatScalar = Union(Float64, Complex128, Float32, Complex64)
 FloatVector = Union(Array{Float64,1}, Array{Complex128,1}, Array{Float32,1}, Array{Complex64,1})
 FloatMatrix = Union(Array{Float64,2}, Array{Complex128,2}, Array{Float32,2}, Array{Complex64,2})
 FloatArray = Union(FloatMatrix, FloatVector)
-FloatComponent = Union(FloatScalar, FloatArray)
+FloatNum = Union(FloatScalar, FloatArray)
+
+FixScalar = Union(Integer,Rational{Int})
+FixVector = Union(Array{Int,1},Array{Rational{Int},1}) 
+FixMatrix = Union(Array{Int,2},Array{Rational{Int},2})
+FixArray = Union(FixMatrix,FixVector)
+FixNum = Union(FixScalar,FixVector,FixArray)
+
+Numeric = Union(FloatNum,FixNum) 
 
 
-immutable DualNum{T<:FloatComponent} 
+immutable DualNum{T<:FloatNum} 
   st::T # standard part
   di::T # differential part
   function DualNum(s::T,d::T)
@@ -24,13 +32,16 @@ immutable DualNum{T<:FloatComponent}
 	return new(s,d)
   end
   DualNum(s::T) = new(s,zero(s))
-  end
-DualNum{T<:FloatComponent}(s::T,d::T) = DualNum{T}(s,d)
-DualNum{T<:FloatComponent}(s::T) = DualNum{T}(s)
+end
+DualNum{T<:FloatNum}(s::T,d::T) = DualNum{T}(s,d)
+DualNum{S<:FloatNum,D<:FloatNum}(s::S,d::D) = DualNum(promote(s,d)...)
+DualNum{S<:Numeric,D<:Numeric}(s::S,d::D) = DualNum(1.0*s,1.0*d)
 
-# DualNum(s::FloatComponent,d::FloatComponent) = DualNum(promote(s,d)...) # make sure parts match
-dualnum(s::FloatComponent,d::FloatComponent) = DualNum(s,d)
-dualnum(n::FloatComponent) = DualNum(n)
+DualNum{T<:FloatNum}(s::T) = DualNum{T}(s)
+DualNum{T<:Numeric}(s::T) = DualNum(1.0*s)
+
+dualnum(s::Numeric,d::Numeric) = DualNum(s,d)
+dualnum(n::Numeric) = DualNum(n)
 
 spart(n::DualNum) = n.st
 dpart(n::DualNum) = n.di
@@ -66,19 +77,19 @@ const du = DualNum(0.0,1.0) # differential unit
 
 ########## promotion and conversion (may not be used that much if operators do their job) #############
 # trivial conversion
-convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
+convert{T<:FloatNum}(::Type{DualNum{T}}, z::DualNum{T}) = z 
 # conversion from one DualNum flavour to another
-convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum) = DualNum(convert(T,z.st),convert(T,z.di))
+convert{T<:FloatNum}(::Type{DualNum{T}}, z::DualNum) = DualNum(convert(T,z.st),convert(T,z.di))
 # conversion from non-Dual to DualNum
-convert{T<:FloatComponent}(::Type{DualNum{T}}, x::FloatComponent) = DualNum(convert(T,x))
+convert{T<:FloatNum}(::Type{DualNum{T}}, x::FloatNum) = DualNum(convert(T,x))
 # reverse conversion
-#convert{T<:FloatComponent}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
+#convert{T<:FloatNum}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
 
 
-#promote_rule{T<:FloatComponent}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
-#promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{S}) =
+#promote_rule{T<:FloatNum}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
+#promote_rule{T<:FloatNum,S<:FloatNum}(::Type{DualNum{T}}, ::Type{S}) =
 #    DualNum{promote_type(T,S)}
-#promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{DualNum{S}}) =
+#promote_rule{T<:FloatNum,S<:FloatNum}(::Type{DualNum{T}}, ::Type{DualNum{S}}) =
 #    DualNum{promote_type(T,S)}
 #####################################################################################################
 
@@ -99,7 +110,7 @@ cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st)
 fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
 fill{V<:FloatScalar}(v::DualNum{V},ii...) = DualNum(fill(v.st,ii...),fill(v.di,ii...))
 
-setindex!{T1<:FloatArray,T2<:FloatComponent}(D::DualNum{T1},S::DualNum{T2},ii...) = 
+setindex!{T1<:FloatArray,T2<:FloatNum}(D::DualNum{T1},S::DualNum{T2},ii...) = 
     (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
 
 
@@ -116,34 +127,34 @@ ctranspose(x::DualNum) = DualNum(x.st',x.di')
 transpose(x::DualNum) = DualNum(x.st.',x.di.')
 
 +(x::DualNum,y::DualNum) = DualNum(x.st+y.st, x.di+y.di)
-+(x::DualNum,y::FloatComponent) = DualNum(x.st+y, x.di)
-+(x::FloatComponent,y::DualNum) = DualNum(x+y.st, y.di)
++(x::DualNum,y::FloatNum) = DualNum(x.st+y, x.di)
++(x::FloatNum,y::DualNum) = DualNum(x+y.st, y.di)
 
 -(x::DualNum,y::DualNum) = DualNum(x.st-y.st, x.di-y.di)
--(x::DualNum,y::FloatComponent) = DualNum(x.st-y, x.di)
--(x::FloatComponent,y::DualNum) = DualNum(x-y.st, -y.di)
+-(x::DualNum,y::FloatNum) = DualNum(x.st-y, x.di)
+-(x::FloatNum,y::DualNum) = DualNum(x-y.st, -y.di)
 
 .*(x::DualNum,y::DualNum) = DualNum(x.st.*y.st, x.st.*y.di + x.di.*y.st)
-.*(x::DualNum,y::FloatComponent) = DualNum(x.st.*y, x.di.*y)
-.*(x::FloatComponent,y::DualNum) = DualNum(x.*y.st, x.*y.di)
+.*(x::DualNum,y::FloatNum) = DualNum(x.st.*y, x.di.*y)
+.*(x::FloatNum,y::DualNum) = DualNum(x.*y.st, x.*y.di)
 
 *(x::DualNum,y::DualNum) = DualNum(x.st*y.st, x.st*y.di + x.di*y.st)
-*(x::DualNum,y::FloatComponent) = DualNum(x.st*y, x.di*y)
-*(x::FloatComponent,y::DualNum) = DualNum(x*y.st, x*y.di)
+*(x::DualNum,y::FloatNum) = DualNum(x.st*y, x.di*y)
+*(x::FloatNum,y::DualNum) = DualNum(x*y.st, x*y.di)
 
 /(a::DualNum,b::DualNum) = (y=a.st/b.st;DualNum(y, (a.di - y*b.di)/b.st))
-/(a::DualNum,b::FloatComponent) = (y=a.st/b;DualNum(y, a.di /b))
-/(a::FloatComponent,b::DualNum) = (y=a/b.st;DualNum(y, - y*b.di/b.st))
+/(a::DualNum,b::FloatNum) = (y=a.st/b;DualNum(y, a.di /b))
+/(a::FloatNum,b::DualNum) = (y=a/b.st;DualNum(y, - y*b.di/b.st))
 
 \(a::DualNum,b::DualNum) = (y=a.st\b.st;DualNum(y, a.st\(b.di - a.di*y)))
-\(a::DualNum,b::FloatComponent) = (y=a.st\b;DualNum(y, -a.st\a.di*y))
-\(a::FloatComponent,b::DualNum) = (y=a\b.st;DualNum(y, a.st\b.di))
+\(a::DualNum,b::FloatNum) = (y=a.st\b;DualNum(y, -a.st\a.di*y))
+\(a::FloatNum,b::DualNum) = (y=a\b.st;DualNum(y, a.st\b.di))
 
 
 
 ./(a::DualNum,b::DualNum) = (y=a.st./b.st;DualNum(y, (a.di - y.*b.di)./b.st))
-./(a::DualNum,b::FloatComponent) = (y=a.st./b;DualNum(y, a.di./b))
-./(a::FloatComponent,b::DualNum) = (y=a./b.st;DualNum(y, - y.*b.di./b.st))
+./(a::DualNum,b::FloatNum) = (y=a.st./b;DualNum(y, a.di./b))
+./(a::FloatNum,b::DualNum) = (y=a./b.st;DualNum(y, - y.*b.di./b.st))
 
 function .^(a::DualNum,b::DualNum)
   y = a.st.^b.st
@@ -151,12 +162,12 @@ function .^(a::DualNum,b::DualNum)
   dydb = y.*log(a.st) # derivative of a^b wrt b
   return DualNum(y, a.di.*dyda + b.di.*dydb)
 end
-function .^(a::DualNum,b::FloatComponent)
+function .^(a::DualNum,b::FloatNum)
   y = a.st.^b
   dyda = b.*a.st.^(b-1) # derivative of a^b wrt a
   return DualNum(y, a.di.*dyda )
 end
-function .^(a::FloatComponent,b::DualNum)
+function .^(a::FloatNum,b::DualNum)
   y = a.^b.st
   dydb = y.*log(a) # derivative of a^b wrt b
   return DualNum(y, b.di.*dydb)
