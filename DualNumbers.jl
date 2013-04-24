@@ -51,11 +51,14 @@ end
 
 
 
-# return DualNum representing 0 or 1 of same flavour as x 
-zero{R}(x::DualNum{R})=DualNum{R}(zero(R),zero(R)) 
-one{R}(x::DualNum{R})=DualNum{R}(one(R),zero(R)) 
-zero{R}(::Type{DualNum{R}})=DualNum{R}(zero(R),zero(R)) 
-one{R}(::Type{DualNum{R}})=DualNum{R}(one(R),zero(R)) 
+# some 0's and 1's
+zero{T<:FloatScalar}(x::DualNum{T})=DualNum(zero(T),zero(T)) 
+one{T<:FloatScalar}(x::DualNum{T})=DualNum(one(T),zero(T)) 
+zero{T<:FloatMatrix}(x::DualNum{T})=DualNum(zero(x.st),zero(x.di))
+one{T<:FloatMatrix2}(x::DualNum{T})=DualNum(one(x.st),zero(x.di))
+zeros{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(zero(T)),ii...)
+ones{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(one(T)),ii...)
+eye{T<:FloatScalar}(::Type{DualNum{T}},ii...) = (I=eye(T,ii...);DualNum(I,zero(I)))
 
 
 ########## promotion and conversion (may not be used that much if operators do their job) #############
@@ -79,10 +82,9 @@ one{R}(::Type{DualNum{R}})=DualNum{R}(one(R),zero(R))
 
 # some general matrix wiring
 length(x::DualNum) = length(x.st)
+endof(x::DualNum) = endof(x.st)
 size(x::DualNum,ii...) = size(x.st,ii...)
 getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...)) 
-setindex!{T1<:FloatMatrix,T2<:FloatMatrix}(D::DualNum{T1},S::DualNum{T2},ii...) = 
-    (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
 ndims(x::DualNum) = ndims(x.st)	
 reshape{T<:FloatMatrix}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
 vec(x::DualNum) = DualNum(vec(x.st),vec(x.di))
@@ -91,9 +93,14 @@ isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di)
 copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
 cat(k::Integer,x::DualNum,y::DualNum) = DualNum(cat(k,x.st,y.st),cat(k,x.di,y.di))
 cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st),cat(k,x.di,y.di,z,di))
+fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
+fill{V<:FloatScalar}(v::DualNum{V},ii...) = DualNum(fill(v.st,ii...),fill(v.di,ii...))
+
+setindex!{T1<:FloatMatrix,T2<:FloatComponent}(D::DualNum{T1},S::DualNum{T2},ii...) = 
+    (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
+
 
 #bsxfun
-#end??
 
 
 
