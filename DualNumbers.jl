@@ -105,8 +105,12 @@ vec(x::DualNum) = DualNum(vec(x.st),vec(x.di))
 ==(x::DualNum,y::DualNum) = (x.st==y.st) && (x.di==y.di) 
 isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
 copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
-cat(k::Integer,x::DualNum,y::DualNum) = DualNum(cat(k,x.st,y.st),cat(k,x.di,y.di))
-cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st),cat(k,x.di,y.di,z,di))
+
+cat{X,Y}(k::Integer,x::DualNum{X},y::DualNum{Y}) = dualnum(cat(k,x.st,y.st),cat(k,x.di,y.di))
+vcat{X,Y}(x::DualNum{X},y::DualNum{Y}) = cat(1,x,y)
+hcat{X,Y}(x::DualNum{X},y::DualNum{Y}) = cat(2,x,y)
+
+
 fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
 fill{V<:FloatScalar}(v::DualNum{V},ii...) = DualNum(fill(v.st,ii...),fill(v.di,ii...))
 
