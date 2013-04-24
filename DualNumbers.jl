@@ -2,7 +2,7 @@ module DualNumbers
 
 importall Base
 
-export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
+#export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
 
 FloatScalar = Union(Float64, Complex{Float64}, Float32, Complex{Float32})
@@ -24,11 +24,13 @@ immutable DualNum{T<:FloatComponent}
 	end
 	return new(s,d)
   end
-end
+  DualNum(s::T) = new(s,zero(s))
+  end
+DualNum{T<:FloatComponent}(s::T,d::T) = DualNum{T}(s,d)
+DualNum{T<:FloatComponent}(s::T) = DualNum{T}(s)
 
-DualNum(s::FloatComponent,d::FloatComponent) = DualNum(promote(s,d)...) # make sure parts match
+# DualNum(s::FloatComponent,d::FloatComponent) = DualNum(promote(s,d)...) # make sure parts match
 dualnum(s::FloatComponent,d::FloatComponent) = DualNum(s,d)
-DualNum(s::FloatComponent)=DualNum(s,zero(s)) # convenience constructor---omitted differential assumed zero
 dualnum(n::FloatComponent) = DualNum(n)
 
 spart(n::DualNum) = n.st
@@ -39,7 +41,15 @@ dpart(n::DualNum) = n.di
 dual2complex{T<:FloatingPoint}(x::DualNum{T}) = complex(x.st,x.di*1e-20)  
 complex2dual{T<:FloatingPoint}(z::Complex{T}) = dualnum(real(z),imag(z)*1e20)
 
-# show needs to print both matrices row by row, next to each other
+# show 
+function show(io::IO,x::DualNum)
+  print("standard part: ")
+  show(io,x.st)  
+  print("\ndifferential part: ")
+  show(io,x.di)  
+end
+
+
 
 # return DualNum representing 0 or 1 of same flavour as x 
 zero{R}(x::DualNum{R})=DualNum{R}(zero(R),zero(R)) 
@@ -50,30 +60,32 @@ one{R}(::Type{DualNum{R}})=DualNum{R}(one(R),zero(R))
 
 ########## promotion and conversion (may not be used that much if operators do their job) #############
 # trivial conversion
-convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
+#convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
 # conversion from one DualNum flavour to another
-convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum) = DualNum{T}(convert(T,z.st),convert(T,z.di))
+#convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum) = DualNum{T}(convert(T,z.st),convert(T,z.di))
 # conversion from non-Dual to DualNum
-convert{T<:FloatComponent}(::Type{DualNum{T}}, x::FloatComponent) = DualNum{T}(convert(T,x), zero(x))
+#convert{T<:FloatComponent}(::Type{DualNum{T}}, x::FloatComponent) = DualNum{T}(convert(T,x), zero(x))
 # reverse conversion
-convert{T<:FloatComponent}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
+#convert{T<:FloatComponent}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
 
 
-promote_rule{T<:FloatComponent}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
-promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{S}) =
-    DualNum{promote_type(T,S)}
-promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{DualNum{S}}) =
-    DualNum{promote_type(T,S)}
+#promote_rule{T<:FloatComponent}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
+#promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{S}) =
+#    DualNum{promote_type(T,S)}
+#promote_rule{T<:FloatComponent,S<:FloatComponent}(::Type{DualNum{T}}, ::Type{DualNum{S}}) =
+#    DualNum{promote_type(T,S)}
+#####################################################################################################
 
 
 # some general matrix wiring
 length(x::DualNum) = length(x.st)
 size(x::DualNum,ii...) = size(x.st,ii...)
 getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...)) 
-setindex!{T<:FloatMatrix}(D::DualNum{T},S::DualNum{T},ii...) = 
+setindex!{T1<:FloatMatrix,T2<:FloatMatrix}(D::DualNum{T1},S::DualNum{T2},ii...) = 
     (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
 ndims(x::DualNum) = ndims(x.st)	
 reshape{T<:FloatMatrix}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
+vec(x::DualNum) = DualNum(vec(x.st),vec(x.di))
 ==(x::DualNum,y::DualNum) = (x.st==y.st) && (x.di==y.di) 
 isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
 copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
@@ -167,11 +179,17 @@ diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::DualNum{X},y::Y) =
 diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::X,y::DualNum{Y}) = 
     DualNum(diagmm(x,y.st),diagmm(x,y.di))
 
-inv{T<:FloatMatrix2}(x::DualMat{T}) = (y=inv(x.st);DualMat(y,-y*x.di*y))
-det{T<:FloatMatrix2}(x::DualMat{T}) = (LU=lufact(x.st);y=det(LU);DualMat(y,y*dot(vec(inv(LU)),vec(x.di.'))))
+inv{T<:FloatMatrix2}(x::DualNum{T}) = (y=inv(x.st);DualNum(y,-y*x.di*y))
+det{T<:FloatMatrix2}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);DualNum(y,y*dot(vec(inv(LU)),vec(x.di.'))))
 
 
 #chol
+function logdet{T}(C::Cholesky{T})
+    dd = zero(T)
+    for i in 1:size(C.UL,1) dd += log(C.UL[i,i]) end
+    2*dd
+end
+
 #lu
 
 
@@ -185,5 +203,15 @@ tan(x::DualNum) = (y=tan(x.st);DualNum(y,x.di.*(1+y.^2)))
 
 sqrt(x::DualNum) = (y=sqrt(x);DualNum(y,0.5./y))
 
-
 end # DualNumbers
+
+DualNum = DualNumbers.DualNum
+dualnum = DualNumbers.dualnum
+du = DualNumbers.du
+spart = DualNumbers.spart
+dpart = DualNumbers.dpart
+dual2complex = DualNumbers.dual2complex
+complex2dual = DualNumbers.complex2dual
+
+
+
