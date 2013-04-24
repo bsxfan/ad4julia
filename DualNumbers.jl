@@ -108,7 +108,7 @@ copy(x::DualNum) = DualNum(copy(x.st),copy(x.di))
 
 cat{X,Y}(k::Integer,x::DualNum{X},y::DualNum{Y}) = dualnum(cat(k,x.st,y.st),cat(k,x.di,y.di))
 vcat{X,Y}(x::DualNum{X},y::DualNum{Y}) = cat(1,x,y)
-hcat{X,Y}(x::DualNum{X},y::DualNum{Y}) = cat(2,x,y)
+hcat{X,Y}(x::DualNum{X},y::DualNum{Y}) = cat(2,x,y	)
 
 
 fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
