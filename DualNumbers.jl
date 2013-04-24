@@ -5,12 +5,11 @@ importall Base
 #export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
 
-FloatScalar = Union(Float64, Complex{Float64}, Float32, Complex{Float32})
-FloatVector = Union(Array{Float64,1}, Array{Complex{Float64},1}, Array{Float32,1}, Array{Complex{Float32},1})
-# strictly 2-dim matrix
-FloatMatrix2 = Union(Array{Float64,2}, Array{Complex{Float64},2}, Array{Float32,2}, Array{Complex{Float32},2})
-FloatMatrix = Union(FloatMatrix2, FloatVector)
-FloatComponent = Union(FloatScalar, FloatVector, FloatMatrix)
+FloatScalar = Union(Float64, Complex128, Float32, Complex64)
+FloatVector = Union(Array{Float64,1}, Array{Complex128,1}, Array{Float32,1}, Array{Complex64,1})
+FloatMatrix = Union(Array{Float64,2}, Array{Complex128,2}, Array{Float32,2}, Array{Complex64,2})
+FloatArray = Union(FloatMatrix, FloatVector)
+FloatComponent = Union(FloatScalar, FloatArray)
 
 
 immutable DualNum{T<:FloatComponent} 
@@ -54,20 +53,24 @@ end
 # some 0's and 1's
 zero{T<:FloatScalar}(x::DualNum{T})=DualNum(zero(T),zero(T)) 
 one{T<:FloatScalar}(x::DualNum{T})=DualNum(one(T),zero(T)) 
-zero{T<:FloatMatrix}(x::DualNum{T})=DualNum(zero(x.st),zero(x.di))
-one{T<:FloatMatrix2}(x::DualNum{T})=DualNum(one(x.st),zero(x.di))
+zero{T<:FloatArray}(x::DualNum{T})=DualNum(zero(x.st),zero(x.di))
+one{T<:FloatMatrix}(x::DualNum{T})=DualNum(one(x.st),zero(x.di))
 zeros{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(zero(T)),ii...)
 ones{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(one(T)),ii...)
 eye{T<:FloatScalar}(::Type{DualNum{T}},ii...) = (I=eye(T,ii...);DualNum(I,zero(I)))
 
 
+const du = DualNum(0.0,1.0) # differential unit
+
+
+
 ########## promotion and conversion (may not be used that much if operators do their job) #############
 # trivial conversion
-#convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
+convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum{T}) = z 
 # conversion from one DualNum flavour to another
-#convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum) = DualNum{T}(convert(T,z.st),convert(T,z.di))
+convert{T<:FloatComponent}(::Type{DualNum{T}}, z::DualNum) = DualNum(convert(T,z.st),convert(T,z.di))
 # conversion from non-Dual to DualNum
-#convert{T<:FloatComponent}(::Type{DualNum{T}}, x::FloatComponent) = DualNum{T}(convert(T,x), zero(x))
+convert{T<:FloatComponent}(::Type{DualNum{T}}, x::FloatComponent) = DualNum(convert(T,x))
 # reverse conversion
 #convert{T<:FloatComponent}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
 
@@ -86,7 +89,7 @@ endof(x::DualNum) = endof(x.st)
 size(x::DualNum,ii...) = size(x.st,ii...)
 getindex(x::DualNum,ii...) = DualNum(getindex(x.st,ii...),getindex(x.di,ii...)) 
 ndims(x::DualNum) = ndims(x.st)	
-reshape{T<:FloatMatrix}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
+reshape{T<:FloatArray}(x::DualNum{T},ii...) = DualNum(reshape(x.st,ii...),reshape(x.di,ii...)) 
 vec(x::DualNum) = DualNum(vec(x.st),vec(x.di))
 ==(x::DualNum,y::DualNum) = (x.st==y.st) && (x.di==y.di) 
 isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
@@ -96,7 +99,7 @@ cat(k::Integer,x::DualNum,y::DualNum,z::DualNum) = DualNum(cat(k,x.st,y.st,z.st)
 fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
 fill{V<:FloatScalar}(v::DualNum{V},ii...) = DualNum(fill(v.st,ii...),fill(v.di,ii...))
 
-setindex!{T1<:FloatMatrix,T2<:FloatComponent}(D::DualNum{T1},S::DualNum{T2},ii...) = 
+setindex!{T1<:FloatArray,T2<:FloatComponent}(D::DualNum{T1},S::DualNum{T2},ii...) = 
     (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
 
 
@@ -163,31 +166,30 @@ end
 ^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::B) = a.^b
 ^{A<:FloatScalar,B<:FloatScalar}(a::A,b::DualNum{B}) = a.^b
 
-const du = DualNum(0.0,1.0) # differential unit
 
 
-######## Function Library #######################
+######## Matrix Function Library #######################
 sum(x::DualNum,ii...) = DualNum(sum(x.st,ii...),sum(x.di,ii...))
 trace(x::DualNum,ii...) = DualNum(trace(x.st,ii...),trace(x.di,ii...))
-diag{T<:FloatMatrix}(x::DualNum{T},k...) = DualNum(diag(x.st,k...),diag(x.di,k...))
-diagm{T<:FloatMatrix}(x::DualNum{T},k...) = DualNum(diagm(x.st,k...),diagm(x.di,k...))
+diag{T<:FloatArray}(x::DualNum{T},k...) = DualNum(diag(x.st,k...),diag(x.di,k...))
+diagm{T<:FloatArray}(x::DualNum{T},k...) = DualNum(diagm(x.st,k...),diagm(x.di,k...))
 
-diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::DualNum{X},y::DualNum{Y}) = 
+diagmm{X<:FloatMatrix,Y<:FloatVector}(x::DualNum{X},y::DualNum{Y}) = 
     DualNum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
-diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::DualNum{X},y::Y) = 
+diagmm{X<:FloatMatrix,Y<:FloatVector}(x::DualNum{X},y::Y) = 
     DualNum(diagmm(x.st,y),diagmm(x.di,y))
-diagmm{X<:FloatMatrix2,Y<:FloatVector}(x::X,y::DualNum{Y}) = 
+diagmm{X<:FloatMatrix,Y<:FloatVector}(x::X,y::DualNum{Y}) = 
     DualNum(diagmm(x,y.st),diagmm(x,y.di))
 
-diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::DualNum{X},y::DualNum{Y}) = 
+diagmm{X<:FloatVector,Y<:FloatMatrix}(x::DualNum{X},y::DualNum{Y}) = 
     DualNum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
-diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::DualNum{X},y::Y) = 
+diagmm{X<:FloatVector,Y<:FloatMatrix}(x::DualNum{X},y::Y) = 
     DualNum(diagmm(x.st,y),diagmm(x.di,y))
-diagmm{X<:FloatVector,Y<:FloatMatrix2}(x::X,y::DualNum{Y}) = 
+diagmm{X<:FloatVector,Y<:FloatMatrix}(x::X,y::DualNum{Y}) = 
     DualNum(diagmm(x,y.st),diagmm(x,y.di))
 
-inv{T<:FloatMatrix2}(x::DualNum{T}) = (y=inv(x.st);DualNum(y,-y*x.di*y))
-det{T<:FloatMatrix2}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);DualNum(y,y*dot(vec(inv(LU)),vec(x.di.'))))
+inv{T<:FloatMatrix}(x::DualNum{T}) = (y=inv(x.st);DualNum(y,-y*x.di*y))
+det{T<:FloatMatrix}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);DualNum(y,y*dot(vec(inv(LU)),vec(x.di.'))))
 
 
 #chol
@@ -200,6 +202,7 @@ end
 #lu
 
 
+######## Vectorized Scalar Function Library #######################
 
 log(x::DualNum) = DualNum(log(x.st),x.di./x.st)
 exp(x::DualNum) = (y=exp(x.st);DualNum(y,x.di.*y))
@@ -211,6 +214,8 @@ tan(x::DualNum) = (y=tan(x.st);DualNum(y,x.di.*(1+y.^2)))
 sqrt(x::DualNum) = (y=sqrt(x);DualNum(y,0.5./y))
 
 end # DualNumbers
+
+
 
 DualNum = DualNumbers.DualNum
 dualnum = DualNumbers.dualnum
