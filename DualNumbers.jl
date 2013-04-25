@@ -31,14 +31,24 @@ immutable DualNum{T<:FloatNum}
 	end
 	return new(s,d)
   end
-  DualNum(s::T) = new(s,zero(s))
 end
 DualNum{T<:FloatNum}(s::T,d::T) = DualNum{T}(s,d)
-DualNum{S<:FloatNum,D<:FloatNum}(s::S,d::D) = DualNum(promote(s,d)...)
-DualNum{S<:Numeric,D<:Numeric}(s::S,d::D) = DualNum(1.0*s,1.0*d)
 
-DualNum{T<:FloatNum}(s::T) = DualNum{T}(s)
-DualNum{T<:Numeric}(s::T) = DualNum(1.0*s)
+function DualNum{S<:Numeric,D<:Numeric}(s::S,d::D)
+  println("here: $S and $D")
+  if S<:FloatNum && S==D
+    return DualNum{S}(s,d)
+  elseif  S<:FloatNum && D<:FloatNum
+    println("here2: $S and $D")
+	s,d = promote(s,d)
+    println("here3: $(typeof(s)) and $(typeof(d))")
+    return DualNum{S}(s,d)
+  else
+    return DualNum(promote(1.0*s,1.0*d)...) #to Float64 or Complex128 and then match (if neccesary)
+  end	
+end
+DualNum{T<:FloatNum}(s::T) = DualNum{T}(s,zero(s))
+DualNum{T<:FixNum}(s::T) = DualNum(1.0*s)
 
 dualnum(s::Numeric,d::Numeric) = DualNum(s,d)
 dualnum(n::Numeric) = DualNum(n)
