@@ -1,25 +1,32 @@
 module DualNumbers
-
 importall Base
-
 #export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
+#some new type sets -- 'Num' should be understood as 'numeric', which can be scalar, vector or matrix
+typealias FloatScalar Union(Float64, Complex128, Float32, Complex64)  # identical to Linalg.BlasFloat
+typealias FloatVector{T<:FloatScalar} Array{T,1}
+typealias FloatMatrix{T<:FloatScalar} Array{T,2}
+typealias FloatArray Union(FloatMatrix, FloatVector)
+typealias FloatNum Union(FloatScalar, FloatArray)
 
-FloatScalar = Union(Float64, Complex128, Float32, Complex64)
-FloatVector = Union(Array{Float64,1}, Array{Complex128,1}, Array{Float32,1}, Array{Complex64,1})
-FloatMatrix = Union(Array{Float64,2}, Array{Complex128,2}, Array{Float32,2}, Array{Complex64,2})
-FloatArray = Union(FloatMatrix, FloatVector)
-FloatNum = Union(FloatScalar, FloatArray)
+typealias FixScalar Union(Integer,Rational)
+typealias FixVector{T<:FixScalar} Array{T,1}
+typealias FixMatrix{T<:FixScalar} Array{T,2}
+typealias FixArray Union(FixMatrix,FixVector)
+typealias FixNum Union(FixScalar,FixArray)
 
-FixScalar = Union(Integer,Rational{Int})
-FixVector = Union(Array{Int,1},Array{Rational{Int},1}) 
-FixMatrix = Union(Array{Int,2},Array{Rational{Int},2})
-FixArray = Union(FixMatrix,FixVector)
-FixNum = Union(FixScalar,FixVector,FixArray)
+typealias Numeric Union(FloatNum,FixNum) 
 
-Numeric = Union(FloatNum,FixNum) 
+#some new promotion rules for vectors and matrices
+promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Vector{A}},::Type{Vector{B}}) = Array{promote_type(A,B),1}
+promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Matrix{A}},::Type{Vector{B}}) = Array{promote_type(A,B),2}
+promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Matrix{A}},::Type{Matrix{B}}) = Array{promote_type(A,B),2}
+# and an associated conversion so vectors can be promoted to matrices
+convert{A<:FloatScalar,B<:FloatScalar}(::Type{Matrix{A}},v::Vector{B}) = reshape(convert(v),length(v),1) 
 
 
+# This is the main new type declared here. The two components can be scalar, vector or matrix, 
+# but must agree in type and shape.
 immutable DualNum{T<:FloatNum} 
   st::T # standard part
   di::T # differential part
@@ -32,16 +39,16 @@ immutable DualNum{T<:FloatNum}
 	return new(s,d)
   end
 end
-DualNum{T<:FloatNum}(s::T,d::T) = DualNum{T}(s,d)
+DualNum{T<:FloatNum}(s::T,d::T) = DualNum{T}(s,d)  # construction given float types that agree
 
-function DualNum{S<:Numeric,D<:Numeric}(s::S,d::D)
-  println("here: $S and $D")
+function DualNum{S<:Numeric,D<:Numeric}(s::S,d::D) # otherwise convert to floats and force match
+  #println("here: $S and $D")
   if S<:FloatNum && S==D
     return DualNum{S}(s,d)
   elseif  S<:FloatNum && D<:FloatNum
-    println("here2: $S and $D")
+    #println("here2: $S and $D")
 	s,d = promote(s,d)
-    println("here3: $(typeof(s)) and $(typeof(d))")
+    #println("here3: $(typeof(s)) and $(typeof(d))")
     return DualNum{S}(s,d)
   else
     return DualNum(promote(1.0*s,1.0*d)...) #to Float64 or Complex128 and then match (if neccesary)
