@@ -141,8 +141,7 @@ function cat(k::Integer,x::DualNum,y::DualNum)
 	println("\nD:")
 	show(D)
 	println("")
-	tuple = (ST,DI,D)
-	return tuple
+	return D
 end
 	
 vcat(x::DualNum,y::DualNum) = cat(1,x,y)
