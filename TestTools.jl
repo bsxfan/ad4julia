@@ -27,7 +27,7 @@ function compareDualAndComplex(f,flags,args...)
 	  C[i] = complex(A[i],1.0e-20)
 	  Y = f(A...)
 	else
-	  C[i] = complex(A[i])  # copies A[i]
+	  C[i] = complex(A[i])  # copies A[i] to new complex matrix
       A[i] = dualnum(A[i])  # doesn't copy 
       for k=1:length(A[i])
         one_differential_part!(A[i],k)  
