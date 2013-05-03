@@ -131,24 +131,6 @@ vec(x::DualNum) = dualnum(vec(x.st),vec(x.di))
 isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
 copy(x::DualNum) = dualnum(copy(x.st),copy(x.di))
 
-# function cat(k::Integer,x::DualNum,y::DualNum) 
-    # println("here in cat");
-	# ST = cat(k,x.st,y.st)
-	# DI = cat(k,x.di,y.di)
-	# D = dualnum(ST,DI);
-	# println("\nST:")
-	# show(ST)
-	# println("\nDI:")
-	# show(DI)
-	# println("\nD:")
-	# show(D)
-	# println("")
-	# return D
-# end
-	
-# vcat(x::DualNum,y::DualNum) = cat(1,x,y)
-# hcat(x::DualNum,y::DualNum) = cat(2,x,y)
-
 vcat(x::DualNum,y::DualNum) = dualnum([x.st, y.st],[x.di, y.di])
 hcat(x::DualNum,y::DualNum) = dualnum([x.st  y.st],[x.di  y.di])
 
@@ -227,49 +209,15 @@ end
 
 
 ######## Matrix Function Library #######################
-sum(x::DualNum,ii...) = dualnum(sum(x.st,ii...),sum(x.di,ii...))
-trace(x::DualNum,ii...) = dualnum(trace(x.st,ii...),trace(x.di,ii...))
-diag{T<:FloatArray}(x::DualNum{T},k...) = dualnum(diag(x.st,k...),diag(x.di,k...))
-diagm{T<:FloatArray}(x::DualNum{T},k...) = dualnum(diagm(x.st,k...),diagm(x.di,k...))
-
-diagmm{X<:FloatMatrix,Y<:FloatVector}(x::DualNum{X},y::DualNum{Y}) = 
-    dualnum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
-diagmm{X<:FloatMatrix,Y<:FloatVector}(x::DualNum{X},y::Y) = 
-    dualnum(diagmm(x.st,y),diagmm(x.di,y))
-diagmm{X<:FloatMatrix,Y<:FloatVector}(x::X,y::DualNum{Y}) = 
-    dualnum(diagmm(x,y.st),diagmm(x,y.di))
-
-diagmm{X<:FloatVector,Y<:FloatMatrix}(x::DualNum{X},y::DualNum{Y}) = 
-    dualnum(diagmm(x.st,y.st),diagmm(x.di,y.st)+diagmm(x.st,y.di))
-diagmm{X<:FloatVector,Y<:FloatMatrix}(x::DualNum{X},y::Y) = 
-    dualnum(diagmm(x.st,y),diagmm(x.di,y))
-diagmm{X<:FloatVector,Y<:FloatMatrix}(x::X,y::DualNum{Y}) = 
-    dualnum(diagmm(x,y.st),diagmm(x,y.di))
-
-inv{T<:FloatMatrix}(x::DualNum{T}) = (y=inv(x.st);dualnum(y,-y*x.di*y))
-det{T<:FloatMatrix}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);dualnum(y,y*dot(vec(inv(LU)),vec(x.di.'))))
-
-
-#chol
-function logdet{T}(C::Cholesky{T})
-    dd = zero(T)
-    for i in 1:size(C.UL,1) dd += log(C.UL[i,i]) end
-    2*dd
-end
-
-#lu
-
+include("MatrixFunctionLib.jl")
 
 ######## Vectorized Scalar Function Library #######################
+include("VectorizedScalarFunctionLib.jl")
 
-log(x::DualNum) = dualnum(log(x.st),x.di./x.st)
-exp(x::DualNum) = (y=exp(x.st);dualnum(y,x.di.*y))
 
-sin(x::DualNum) = dualnum(sin(x.st),x.di.*cos(x.st))
-cos(x::DualNum) = dualnum(cos(x.st),-x.di.*sin(x.st))
-tan(x::DualNum) = (y=tan(x.st);dualnum(y,x.di.*(1+y.^2)))
 
-sqrt(x::DualNum) = (y=sqrt(x);dualnum(y,0.5./y))
+include("TestTools.jl")
+
 
 end # DualNumbers
 
