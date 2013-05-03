@@ -9,7 +9,9 @@ typealias FloatMatrix{T<:FloatScalar} Array{T,2}
 typealias FloatArray Union(FloatMatrix, FloatVector)
 typealias FloatNum Union(FloatScalar, FloatArray)
 
-typealias FixScalar Union(Integer,Rational)
+typealias FixReal Union(Integer,Rational)
+typealias FixComplex{T<:FixReal} Complex{T}
+typealias FixScalar Union(FixReal,FixComplex)
 typealias FixVector{T<:FixScalar} Array{T,1}
 typealias FixMatrix{T<:FixScalar} Array{T,2}
 typealias FixArray Union(FixMatrix,FixVector)
@@ -129,23 +131,27 @@ vec(x::DualNum) = dualnum(vec(x.st),vec(x.di))
 isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di) 
 copy(x::DualNum) = dualnum(copy(x.st),copy(x.di))
 
-function cat(k::Integer,x::DualNum,y::DualNum) 
-    println("here in cat");
-	ST = cat(k,x.st,y.st)
-	DI = cat(k,x.di,y.di)
-	D = dualnum(ST,DI);
-	println("\nST:")
-	show(ST)
-	println("\nDI:")
-	show(DI)
-	println("\nD:")
-	show(D)
-	println("")
-	return D
-end
+# function cat(k::Integer,x::DualNum,y::DualNum) 
+    # println("here in cat");
+	# ST = cat(k,x.st,y.st)
+	# DI = cat(k,x.di,y.di)
+	# D = dualnum(ST,DI);
+	# println("\nST:")
+	# show(ST)
+	# println("\nDI:")
+	# show(DI)
+	# println("\nD:")
+	# show(D)
+	# println("")
+	# return D
+# end
 	
-vcat(x::DualNum,y::DualNum) = cat(1,x,y)
-hcat(x::DualNum,y::DualNum) = cat(2,x,y)
+# vcat(x::DualNum,y::DualNum) = cat(1,x,y)
+# hcat(x::DualNum,y::DualNum) = cat(2,x,y)
+
+vcat(x::DualNum,y::DualNum) = dualnum([x.st, y.st],[x.di, y.di])
+hcat(x::DualNum,y::DualNum) = dualnum([x.st  y.st],[x.di  y.di])
+
 
 
 fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
