@@ -19,6 +19,9 @@ typealias FixNum Union(FixScalar,FixArray)
 
 typealias Numeric Union(FloatNum,FixNum) 
 
+typealias Scalar Union(FloatScalar,FixScalar)
+vec(x::Scalar) = [x]
+
 #some new promotion rules for vectors and matrices
 promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Vector{A}},::Type{Vector{B}}) = Array{promote_type(A,B),1}
 promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Matrix{A}},::Type{Vector{B}}) = Array{promote_type(A,B),2}
@@ -136,11 +139,15 @@ hcat(x::DualNum,y::DualNum) = dualnum([x.st  y.st],[x.di  y.di])
 
 
 
-fill!{D,S}(d::DualNum{D},s::DualNum{S}) = (fill!(d.st,s,st);fill!(d.di,s.di);d)
+fill!(d::DualNum,s::DualNum) = (fill!(d.st,s.st);fill!(d.di,s.di);d)
+fill!(d::DualNum,s::Scalar) = (fill!(d.st,s);fill!(d.di,0);d)
 fill{V<:FloatScalar}(v::DualNum{V},ii...) = dualnum(fill(v.st,ii...),fill(v.di,ii...))
+fill(v::Scalar,ii...) = dualnum(fill(v,ii...))
 
 setindex!{T1<:FloatArray,T2<:FloatNum}(D::DualNum{T1},S::DualNum{T2},ii...) = 
     (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
+setindex!{T1<:FloatArray,T2<:Numeric}(D::DualNum{T1},S::T2,ii...) = 
+    (setindex!(D.st,S,ii...);setindex!(D.di,0,ii...);D)
 
 
 #bsxfun
