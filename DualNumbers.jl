@@ -76,8 +76,10 @@ dpart(n::DualNum) = n.di
 
 
 # to and from Complex types, to facilitate comparison with complex step differentiation
-dual2complex{T<:FloatingPoint}(x::DualNum{T}) = complex(x.st,x.di*1e-20)  
-complex2dual{T<:FloatingPoint}(z::Complex{T}) = dualnum(real(z),imag(z)*1e20)
+const cstepSz = 1e-20
+dual2complex{T<:FloatingPoint}(x::DualNum{T}) = complex(x.st,x.di*cstepSz)  
+complex2dual(z::Complex) = dualnum(real(z),imag(z)/cstepSz)
+complex2dual{T<:Scalar}(z::Array{Complex{T}}) = dualnum(real(z),imag(z)/cstepSz)
 
 # show 
 function show(io::IO,x::DualNum)
@@ -184,7 +186,7 @@ transpose(x::DualNum) = dualnum(x.st.',x.di.')
 
 \(a::DualNum,b::DualNum) = (y=a.st\b.st;dualnum(y, a.st\(b.di - a.di*y)))
 \(a::DualNum,b::FloatNum) = (y=a.st\b;dualnum(y, -a.st\a.di*y))
-\(a::FloatNum,b::DualNum) = (y=a\b.st;dualnum(y, a.st\b.di))
+\(a::FloatNum,b::DualNum) = (y=a\b.st;dualnum(y, a\b.di))
 
 
 
