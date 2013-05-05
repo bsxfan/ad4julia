@@ -2,7 +2,8 @@ module DualNumbers
 importall Base
 export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
-#some new type sets -- 'Num' should be understood as 'numeric', which can be scalar, vector or matrix
+#A convenient taxonomy of numeric types 
+# 'Num' should be understood as 'numeric', which can be scalar, vector or matrix.
 typealias FloatScalar Union(Float64, Complex128, Float32, Complex64)  # identical to Linalg.BlasFloat
 typealias FloatVector{T<:FloatScalar} Array{T,1}
 typealias FloatMatrix{T<:FloatScalar} Array{T,2}
@@ -21,6 +22,7 @@ typealias Numeric Union(FloatNum,FixNum)
 
 typealias Scalar Union(FloatScalar,FixScalar)
 vec(x::Scalar) = [x]
+
 
 #some new promotion rules for vectors and matrices
 promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Vector{A}},::Type{Vector{B}}) = Array{promote_type(A,B),1}
@@ -77,15 +79,16 @@ dpart(n::DualNum) = n.di
 
 # to and from Complex types, to facilitate comparison with complex step differentiation
 const cstepSz = 1e-20
-dual2complex{T<:FloatingPoint}(x::DualNum{T}) = complex(x.st,x.di*cstepSz)  
+dual2complex{T<:Numeric}(x::DualNum{T}) = complex(x.st,x.di*cstepSz)  
 complex2dual(z::Complex) = dualnum(real(z),imag(z)/cstepSz)
 complex2dual{T<:Scalar}(z::Array{Complex{T}}) = dualnum(real(z),imag(z)/cstepSz)
 
+
 # show 
 function show(io::IO,x::DualNum)
-  print("standard part: ")
+  print(io,"standard part: ")
   show(io,x.st)  
-  print("\ndifferential part: ")
+  print(io,"\ndifferential part: ")
   show(io,x.di)  
 end
 
@@ -96,8 +99,8 @@ zero{T<:FloatScalar}(x::DualNum{T})=dualnum(zero(T),zero(T))
 one{T<:FloatScalar}(x::DualNum{T})=dualnum(one(T),zero(T)) 
 zero{T<:FloatArray}(x::DualNum{T})=dualnum(zero(x.st),zero(x.di))
 one{T<:FloatMatrix}(x::DualNum{T})=dualnum(one(x.st),zero(x.di))
-zeros{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(zero(T)),ii...)
-ones{T<:FloatScalar}(::Type{DualNum{T}},ii...) = fill(dualnum(one(T)),ii...)
+zeros{T<:FloatScalar}(::Type{DualNum{T}},ii...) = dualnum(zeros(T,ii))
+ones{T<:FloatScalar}(::Type{DualNum{T}},ii...) = dualnum(ones(T,ii))
 eye{T<:FloatScalar}(::Type{DualNum{T}},ii...) = (I=eye(T,ii...);dualnum(I,zero(I)))
 
 
@@ -110,14 +113,14 @@ const du = dualnum(0.0,1.0) # differential unit
 convert{T<:FloatNum}(::Type{DualNum{T}}, z::DualNum{T}) = z 
 # conversion from one DualNum flavour to another
 convert{T<:FloatNum}(::Type{DualNum{T}}, z::DualNum) = dualnum(convert(T,z.st),convert(T,z.di))
-# conversion from non-Dual to DualNum
-convert{T<:FloatNum}(::Type{DualNum{T}}, x::FloatNum) = dualnum(convert(T,x))
+# conversion from Numeric to DualNum
+convert{T<:FloatNum}(::Type{DualNum{T}}, x::Numeric) = dualnum(convert(T,x))
 # reverse conversion
-convert{T<:FloatNum}(::Type{T},::DualNum) = (Error("can't convert from DualNum to $T"))
+convert{T<:Numeric}(::Type{T},::DualNum) = Error("can't convert from DualNum to $T")
 
 
 promote_rule{T<:FloatNum}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
-promote_rule{T<:FloatNum,S<:FloatNum}(::Type{DualNum{T}}, ::Type{S}) =
+promote_rule{T<:FloatNum,S<:Numeric}(::Type{DualNum{T}}, ::Type{S}) =
     DualNum{promote_type(T,S)}
 promote_rule{T<:FloatNum,S<:FloatNum}(::Type{DualNum{T}}, ::Type{DualNum{S}}) =
     DualNum{promote_type(T,S)}
@@ -144,7 +147,7 @@ hcat(x::DualNum,y::DualNum) = dualnum([x.st  y.st],[x.di  y.di])
 fill!(d::DualNum,s::DualNum) = (fill!(d.st,s.st);fill!(d.di,s.di);d)
 fill!(d::DualNum,s::Scalar) = (fill!(d.st,s);fill!(d.di,0);d)
 fill{V<:FloatScalar}(v::DualNum{V},ii...) = dualnum(fill(v.st,ii...),fill(v.di,ii...))
-fill(v::Scalar,ii...) = dualnum(fill(v,ii...))
+
 
 setindex!{T1<:FloatArray,T2<:FloatNum}(D::DualNum{T1},S::DualNum{T2},ii...) = 
     (setindex!(D.st,S.st,ii...);setindex!(D.di,S.di,ii...);D)
@@ -165,34 +168,34 @@ ctranspose(x::DualNum) = dualnum(x.st',x.di')
 transpose(x::DualNum) = dualnum(x.st.',x.di.')
 
 +(x::DualNum,y::DualNum) = dualnum(x.st+y.st, x.di+y.di)
-+(x::DualNum,y::FloatNum) = dualnum(x.st+y, x.di)
-+(x::FloatNum,y::DualNum) = dualnum(x+y.st, y.di)
++(x::DualNum,y::Numeric) = dualnum(x.st+y, x.di)
++(x::Numeric,y::DualNum) = dualnum(x+y.st, y.di)
 
 -(x::DualNum,y::DualNum) = dualnum(x.st-y.st, x.di-y.di)
--(x::DualNum,y::FloatNum) = dualnum(x.st-y, x.di)
--(x::FloatNum,y::DualNum) = dualnum(x-y.st, -y.di)
+-(x::DualNum,y::Numeric) = dualnum(x.st-y, x.di)
+-(x::Numeric,y::DualNum) = dualnum(x-y.st, -y.di)
 
 .*(x::DualNum,y::DualNum) = dualnum(x.st.*y.st, x.st.*y.di + x.di.*y.st)
-.*(x::DualNum,y::FloatNum) = dualnum(x.st.*y, x.di.*y)
-.*(x::FloatNum,y::DualNum) = dualnum(x.*y.st, x.*y.di)
+.*(x::DualNum,y::Numeric) = dualnum(x.st.*y, x.di.*y)
+.*(x::Numeric,y::DualNum) = dualnum(x.*y.st, x.*y.di)
 
 *(x::DualNum,y::DualNum) = dualnum(x.st*y.st, x.st*y.di + x.di*y.st)
-*(x::DualNum,y::FloatNum) = dualnum(x.st*y, x.di*y)
-*(x::FloatNum,y::DualNum) = dualnum(x*y.st, x*y.di)
+*(x::DualNum,y::Numeric) = dualnum(x.st*y, x.di*y)
+*(x::Numeric,y::DualNum) = dualnum(x*y.st, x*y.di)
 
 /(a::DualNum,b::DualNum) = (y=a.st/b.st;dualnum(y, (a.di - y*b.di)/b.st))
-/(a::DualNum,b::FloatNum) = (y=a.st/b;dualnum(y, a.di /b))
-/(a::FloatNum,b::DualNum) = (y=a/b.st;dualnum(y, - y*b.di/b.st))
+/(a::DualNum,b::Numeric) = (y=a.st/b;dualnum(y, a.di /b))
+/(a::Numeric,b::DualNum) = (y=a/b.st;dualnum(y, - y*b.di/b.st))
 
 \(a::DualNum,b::DualNum) = (y=a.st\b.st;dualnum(y, a.st\(b.di - a.di*y)))
-\(a::DualNum,b::FloatNum) = (y=a.st\b;dualnum(y, -a.st\a.di*y))
-\(a::FloatNum,b::DualNum) = (y=a\b.st;dualnum(y, a\b.di))
+\(a::DualNum,b::Numeric) = (y=a.st\b;dualnum(y, -a.st\a.di*y))
+\(a::Numeric,b::DualNum) = (y=a\b.st;dualnum(y, a\b.di))
 
 
 
 ./(a::DualNum,b::DualNum) = (y=a.st./b.st;dualnum(y, (a.di - y.*b.di)./b.st))
-./(a::DualNum,b::FloatNum) = (y=a.st./b;dualnum(y, a.di./b))
-./(a::FloatNum,b::DualNum) = (y=a./b.st;dualnum(y, - y.*b.di./b.st))
+./(a::DualNum,b::Numeric) = (y=a.st./b;dualnum(y, a.di./b))
+./(a::Numeric,b::DualNum) = (y=a./b.st;dualnum(y, - y.*b.di./b.st))
 
 function .^(a::DualNum,b::DualNum)
   y = a.st.^b.st
@@ -200,21 +203,41 @@ function .^(a::DualNum,b::DualNum)
   dydb = y.*log(a.st) # derivative of a^b wrt b
   return dualnum(y, a.di.*dyda + b.di.*dydb)
 end
-function .^(a::DualNum,b::FloatNum)
+function .^(a::DualNum,b::Numeric)
   y = a.st.^b
   dyda = b.*a.st.^(b-1) # derivative of a^b wrt a
   return dualnum(y, a.di.*dyda )
 end
-function .^(a::FloatNum,b::DualNum)
+function .^(a::Numeric,b::DualNum)
   y = a.^b.st
   dydb = y.*log(a) # derivative of a^b wrt b
   return dualnum(y, b.di.*dydb)
 end
 
+# send ^ for scalar arguments to .^
 ^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::DualNum{B}) = a.^b
-^{A<:FloatScalar,B<:FloatScalar}(a::DualNum{A},b::B) = a.^b
-^{A<:FloatScalar,B<:FloatScalar}(a::A,b::DualNum{B}) = a.^b
+^{A<:FloatScalar}(a::DualNum{A},b::Integer) = a.^b
+^{A<:FloatScalar}(a::DualNum{A},b::Scalar) = a.^b
+^{B<:FloatScalar}(a::Scalar,b::DualNum{B}) = a.^b
 
+# handle Matrix^Integer for a few special cases
+function (^){T<:FloatMatrix}(A::DualNum{T},b::Integer)
+  if size(A,1) != size(A,2)
+    error("Matrix^Integer defined for square matrices only")
+  end
+  if b<0 
+    return (^)(inv(A),-b)
+  elseif b==0
+    return one(A)
+  elseif b==1
+    return A
+  elseif b==2
+    return dualnum(A.st^2,A.st*A.di + A.di*A.st)
+  else
+    error("^(DualNum{FloatMatrix},b::Integer) not yet defined for b>2")
+	# can be done by recursive squaring
+  end
+end
 
 
 ######## Matrix Function Library #######################
