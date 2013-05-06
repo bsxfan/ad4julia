@@ -4,7 +4,9 @@ export DualNum,du,dualnum,spart,dpart,dual2complex,complex2dual
 
 #A convenient taxonomy of numeric types 
 # 'Num' should be understood as 'numeric', which can be scalar, vector or matrix.
-typealias FloatScalar Union(Float64, Complex128, Float32, Complex64)  # identical to Linalg.BlasFloat
+typealias FloatReal Union(Float64,Float32)
+typealias FloatComplex Union(Complex128,Complex64)
+typealias FloatScalar Union(FloatReal, FloatComplex)  # identical to Linalg.BlasFloat
 typealias FloatVector{T<:FloatScalar} Array{T,1}
 typealias FloatMatrix{T<:FloatScalar} Array{T,2}
 typealias FloatArray Union(FloatMatrix, FloatVector)
@@ -17,6 +19,11 @@ typealias FixVector{T<:FixScalar} Array{T,1}
 typealias FixMatrix{T<:FixScalar} Array{T,2}
 typealias FixArray Union(FixMatrix,FixVector)
 typealias FixNum Union(FixScalar,FixArray)
+
+typealias RealScalar Union(FloatReal,FixReal)
+typealias RealVector{T<:RealScalar} Array{T,1} 
+typealias RealMatrix{T<:RealScalar} Array{T,2} 
+typealias RealNum Union(RealScalar,RealVector,RealMatrix)
 
 typealias Numeric Union(FloatNum,FixNum) 
 
@@ -82,6 +89,10 @@ const cstepSz = 1e-20
 dual2complex{T<:Numeric}(x::DualNum{T}) = complex(x.st,x.di*cstepSz)  
 complex2dual(z::Complex) = dualnum(real(z),imag(z)/cstepSz)
 complex2dual{T<:Scalar}(z::Array{Complex{T}}) = dualnum(real(z),imag(z)/cstepSz)
+flt_complex(x::FixReal) = complex(1.0*x)
+flt_complex{T<:FixReal}(x::Vector{T}) = complex(1.0*x)
+flt_complex{T<:FixReal}(x::Matrix{T}) = complex(1.0*x)
+flt_complex(x::RealNum) = complex(x)
 
 
 # show 
@@ -140,7 +151,12 @@ isequal(x::DualNum,y::DualNum) = isequal(x.st,y.st) && isequal(x.di,y.di)
 copy(x::DualNum) = dualnum(copy(x.st),copy(x.di))
 
 vcat(x::DualNum,y::DualNum) = dualnum([x.st, y.st],[x.di, y.di])
+vcat(x::DualNum,y::Numeric) = dualnum([x.st, y],[x.di, zero(y)])
+vcat(x::Numeric,y::DualNum) = dualnum([x, y.st],[zero(x), y.di])
+
 hcat(x::DualNum,y::DualNum) = dualnum([x.st  y.st],[x.di  y.di])
+hcat(x::DualNum,y::Numeric) = dualnum([x.st  y],[x.di  zero(y)])
+hcat(x::Numeric,y::DualNum) = dualnum([x  y.st],[zero(x)  y.di])
 
 
 

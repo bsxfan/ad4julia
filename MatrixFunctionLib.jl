@@ -22,10 +22,10 @@ inv{T<:FloatMatrix}(x::DualNum{T}) = (y=inv(x.st);dualnum(y,-y*x.di*y))
 det{T<:FloatMatrix}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);dualnum(y,y*dot(vec(inv(LU)),vec(x.di.'))))
 
 #chol
-function logdet{T}(C::Cholesky{T})
-    dd = zero(T)
-    for i in 1:size(C.UL,1) dd += log(C.UL[i,i]) end
-    2*dd
-end
+# function logdet{T}(C::Cholesky{T})
+    # dd = zero(T)
+    # for i in 1:size(C.UL,1) dd += log(C.UL[i,i]) end
+    # 2*dd
+# end
 
 #lu
