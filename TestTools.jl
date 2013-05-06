@@ -5,6 +5,8 @@
 export compareDualAndComplex,compRndDualAndComplex
 
 
+printredln(line) = println("\e[91;1m$(line)\e[0m")
+printerrln(comment,value) = value>1e-6?printredln("$(value): $(value)"):printredln("$(value): $(value)")
 
 compareDualAndComplex(f::Function,args) = compareDualAndComplex(f,args,trues(length(args)))
 function compareDualAndComplex(f::Function,args,flags)
@@ -12,18 +14,11 @@ function compareDualAndComplex(f::Function,args,flags)
   n = length(args)
   println("Testing differentials: $(sum(flags)) of $n arguments.")
   @assert n==length(flags)
-  #println("here1")
   @assert all(arg->isa(arg,RealNum),args[flags])
-  #println("here2")
   dc_args = deepcopy(args[flags])
-  #println("here2")
   Y0 = f(args...)
-  #println("here3")
   @assert dc_args == args[flags] # no side-effect allowed in differentiable arguments
-  #println("here4")
   @assert isa(Y0,RealNum)  # tuple of Numerics would also be do-able
-  #println("here5")
-
   println("  function value size: $(size(Y0))")
   err = 0
   
@@ -66,9 +61,9 @@ function compareDualAndComplex(f::Function,args,flags)
    	    err = max(err,verr1,verr2,derr)
 	  end	  
 	end
-	println("    max abs function value error in dual step: $verr1")
-	println("    max abs function value error in complex step: $verr2")
-	println("    max abs error between dual and complex differentials: $derr")
+	printerrln("    max abs function value error in dual step",verr1)
+	printerrln("    max abs function value error in complex step",verr2)
+	printerrln("    max abs error between dual and complex differentials",derr)
     A[i] = dc_args[j] # restore to original -- no need to copy, no further modification	  
     C[i] = dc_args[j] # restore to original	-- no need to copy, no further modification	    
   end
@@ -77,7 +72,7 @@ function compareDualAndComplex(f::Function,args,flags)
   for i=1:10
     rerr = max(rerr,compRndDualAndComplex(f,args,flags,true))
   end
-  println("  all arguments together, dual vs complex: $rerr")
+  printerrln("  all arguments together, dual vs complex: $rerr")
   return max(err,rerr)
   #compRndDualAndComplex(f,args,flags,true)
   #return err
@@ -122,12 +117,11 @@ function compRndDualAndComplex(f,args,flags,quiet)
   verr2 = max(abs(Yc.st-Y0))
   derr = max(abs(Yd.di-Yc.di))
   if !quiet
-    println("  max abs function value error in dual step: $verr1")
-    println("  max abs function value error in complex step: $verr2")
-    println("  max abs error between dual and complex differentials: $derr")
+    printerrln("  max abs function value error in dual step",verr1)
+    printerrln("  max abs function value error in complex step",verr2)
+    printerrln("  max abs error between dual and complex differentials",derr)
   end
   err = max(verr1,verr2,derr)
-  #println("  all arguments together, dual vs complex: $err")
   return err
 
 end
