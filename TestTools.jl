@@ -6,7 +6,7 @@ export compareDualAndComplex,compRndDualAndComplex
 
 
 printredln(line) = println("\e[91;1m$(line)\e[0m")
-printerrln(comment,value) = value>1e-6?printredln("$(value): $(value)"):printredln("$(value): $(value)")
+printerrln(comment,value) = value>1e-6?printredln("$(comment): $(value)"):println("$(comment): $(value)")
 
 compareDualAndComplex(f::Function,args) = compareDualAndComplex(f,args,trues(length(args)))
 function compareDualAndComplex(f::Function,args,flags)
@@ -33,7 +33,7 @@ function compareDualAndComplex(f::Function,args,flags)
 	end
 	println("  argument $i, $(size(A[i])):")
 	if length(A[i])==1
-	  C[i] = flt_complex(A[i],cstepSz)
+	  C[i] = complex(A[i],cstepSz)
 	  A[i] = dualnum(A[i],1)
 	  Yd = f(A...)
 	  Yc = complex2dual(f(C...))
@@ -48,17 +48,21 @@ function compareDualAndComplex(f::Function,args,flags)
 	  C[i] = flt_complex(A[i])  # copies A[i] to new complex matrix
       A[i] = dualnum(A[i])  # doesn't copy 
       for k=1:length(A[i])
-        #one_differential_part!(A[i],k)  
 		A[i].di[k] = 1
         C[i][k] += cstepSz*im 		
+		
+		
 		Yd = f(A...)
 		Yc = complex2dual(f(C...))
+		derr_k = max(abs(Yd.di-Yc.di))
+		
 		A[i].di[k] = 0 #restore this element
 		C[i][k] = complex(real(C[i][k]),0.0) #restore this element
+
 		verr1 = max(verr1,max(abs(Yd.st-Y0)))
 		verr2 = max(verr2,max(abs(Yc.st-Y0)))
-		derr = max(verr2,max(abs(Yd.di-Yc.di)))
-   	    err = max(err,verr1,verr2,derr)
+		derr = max(derr,derr_k)
+		err = max(err,verr1,verr2,derr)
 	  end	  
 	end
 	printerrln("    max abs function value error in dual step",verr1)
@@ -72,7 +76,7 @@ function compareDualAndComplex(f::Function,args,flags)
   for i=1:10
     rerr = max(rerr,compRndDualAndComplex(f,args,flags,true))
   end
-  printerrln("  all arguments together, dual vs complex: $rerr")
+  printerrln("  all input differentials random, dual vs complex",rerr)
   return max(err,rerr)
   #compRndDualAndComplex(f,args,flags,true)
   #return err

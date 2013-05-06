@@ -184,11 +184,11 @@ ctranspose(x::DualNum) = dualnum(x.st',x.di')
 transpose(x::DualNum) = dualnum(x.st.',x.di.')
 
 +(x::DualNum,y::DualNum) = dualnum(x.st+y.st, x.di+y.di)
-+(x::DualNum,y::Numeric) = dualnum(x.st+y, x.di)
-+(x::Numeric,y::DualNum) = dualnum(x+y.st, y.di)
++(x::DualNum,y::Numeric) = dualnum(x.st+y, copy(x.di))
++(x::Numeric,y::DualNum) = dualnum(x+y.st, copy(y.di))
 
 -(x::DualNum,y::DualNum) = dualnum(x.st-y.st, x.di-y.di)
--(x::DualNum,y::Numeric) = dualnum(x.st-y, x.di)
+-(x::DualNum,y::Numeric) = dualnum(x.st-y, copy(x.di))
 -(x::Numeric,y::DualNum) = dualnum(x-y.st, -y.di)
 
 .*(x::DualNum,y::DualNum) = dualnum(x.st.*y.st, x.st.*y.di + x.di.*y.st)
