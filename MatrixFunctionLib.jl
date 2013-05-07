@@ -5,22 +5,28 @@ diag{T<:FloatArray}(x::DualNum{T},k...) = dualnum(diag(x.st,k...),diag(x.di,k...
 diagm{T<:FloatArray}(x::DualNum{T},k...) = dualnum(diagm(x.st,k...),diagm(x.di,k...))
 
 
-
-scale{X<:FloatMatrix,Y<:Union(FloatVector,FloatScalar)}(x::DualNum{X},y::DualNum{Y}) = 
+#scale(Matrix,Scalar)
+scale{X<:FloatMatrix,Y<:FloatScalar}(x::DualNum{X},y::DualNum{Y}) = 
     dualnum(scale(x.st,y.st),scale(x.di,y.st)+scale(x.st,y.di))
-scale{X<:FloatMatrix,Y<:Union(Vector,Number)}(x::DualNum{X},y::Y) = 
+scale{X<:FloatMatrix,Y<:Number}(x::DualNum{X},y::Y) = 
     dualnum(scale(x.st,y),scale(x.di,y))
 scale{X<:Array,Y<:FloatScalar}(x::X,y::DualNum{Y}) = 
     dualnum(scale(x,y.st),scale(x,y.di))
+
+	
+#scale(Matrix,Vector)
+scale{X<:FloatMatrix,Y<:FloatVector}(x::DualNum{X},y::DualNum{Y}) = 
+    dualnum(scale(x.st,y.st),scale(x.di,y.st)+scale(x.st,y.di))
+scale{X<:FloatMatrix,Y<:Vector}(x::DualNum{X},y::Y) = 
+    dualnum(scale(x.st,y),scale(x.di,y))
 scale{X<:Matrix,Y<:FloatVector}(x::X,y::DualNum{Y}) = 
     dualnum(scale(x,y.st),scale(x,y.di))
 
-scale{X<:Union(FloatVector,FloatScalar),Y<:FloatMatrix}(x::DualNum{X},y::DualNum{Y}) = 
+#scale(Vector,Matrix)	
+scale{X<:FloatVector,Y<:FloatMatrix}(x::DualNum{X},y::DualNum{Y}) = 
     dualnum(scale(x.st,y.st),scale(x.di,y.st)+scale(x.st,y.di))
-scale{X<:Union(Vector,Number),Y<:FloatMatrix}(x::X,y::DualNum{Y}) = 
-    dualnum(scale(x.st,y),scale(x.di,y))
-scale{X<:FloatScalar,Y<:Array}(x::DualNum{X},y::Y) = 
-    dualnum(scale(x.st,y),scale(x.di,y))
+scale{X<:Vector,Y<:FloatMatrix}(x::X,y::DualNum{Y}) = 
+    dualnum(scale(x,y.st),scale(x,y.di))
 scale{X<:FloatVector,Y<:Matrix}(x::DualNum{X},y::Y) = 
     dualnum(scale(x.st,y),scale(x.di,y))
 
