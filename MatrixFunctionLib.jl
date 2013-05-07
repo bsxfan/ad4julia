@@ -17,7 +17,7 @@ scale{X<:Matrix,Y<:FloatVector}(x::X,y::DualNum{Y}) =
 
 scale{X<:Union(FloatVector,FloatScalar),Y<:FloatMatrix}(x::DualNum{X},y::DualNum{Y}) = 
     dualnum(scale(x.st,y.st),scale(x.di,y.st)+scale(x.st,y.di))
-scale{X<:Union(Vector,Number),Y<:FloatMatrix}(x::DualNum{X},y::Y) = 
+scale{X<:Union(Vector,Number),Y<:FloatMatrix}(x::X,y::DualNum{Y}) = 
     dualnum(scale(x.st,y),scale(x.di,y))
 scale{X<:FloatScalar,Y<:Array}(x::DualNum{X},y::Y) = 
     dualnum(scale(x.st,y),scale(x.di,y))
