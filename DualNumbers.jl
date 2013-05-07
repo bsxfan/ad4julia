@@ -127,7 +127,7 @@ convert{T<:FloatNum}(::Type{DualNum{T}}, z::DualNum) = dualnum(convert(T,z.st),c
 # conversion from Numeric to DualNum
 convert{T<:FloatNum}(::Type{DualNum{T}}, x::Numeric) = dualnum(convert(T,x))
 # reverse conversion
-convert{T<:Numeric}(::Type{T},::DualNum) = Error("can't convert from DualNum to $T")
+convert{T<:Numeric}(::Type{T},::DualNum) = error("can't convert from DualNum to $T")
 
 
 promote_rule{T<:FloatNum}(::Type{DualNum{T}}, ::Type{T}) = DualNum{T}
