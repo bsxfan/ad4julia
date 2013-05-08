@@ -36,7 +36,10 @@ function compareDualAndComplex(f::Function,args,flags)
 	  C[i] = complex(A[i],cstepSz)
 	  A[i] = dualnum(A[i],1)
 	  Yd = f(A...)
+	  @show C
+	  @show f(C...)
 	  Yc = complex2dual(f(C...))
+	  @show Yc
 	  verr1 = max(abs(Yd.st-Y0))
 	  verr2 = max(abs(Yc.st-Y0))
 	  derr = max(abs(Yd.di-Yc.di))
@@ -54,14 +57,13 @@ function compareDualAndComplex(f::Function,args,flags)
 		
 		Yd = f(A...)
 		Yc = complex2dual(f(C...))
-		derr_k = max(abs(Yd.di-Yc.di))
 		
 		A[i].di[k] = 0 #restore this element
 		C[i][k] = complex(real(C[i][k]),0.0) #restore this element
 
 		verr1 = max(verr1,max(abs(Yd.st-Y0)))
 		verr2 = max(verr2,max(abs(Yc.st-Y0)))
-		derr = max(derr,derr_k)
+		derr = max(derr,max(abs(Yd.di-Yc.di)))
 		err = max(err,verr1,verr2,derr)
 	  end	  
 	end

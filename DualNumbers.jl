@@ -242,17 +242,19 @@ function (^){T<:FloatMatrix}(A::DualNum{T},b::Integer)
     error("Matrix^Integer defined for square matrices only")
   end
   if b<0 
-    return (^)(inv(A),-b)
-  elseif b==0
-    return one(A)
-  elseif b==1
-    return A
-  elseif b==2
-    return dualnum(A.st^2,A.st*A.di + A.di*A.st)
+    return inv(A^(-b))
   else
-    error("^(DualNum{FloatMatrix},b::Integer) not yet defined for b>2")
-	# can be done by recursive squaring
+    return Base.power_by_squaring(A,b)
   end
+  # elseif b==0
+    # return one(A)
+  # elseif b==1
+    # return copy(A)
+  # elseif b==2
+    # return dualnum(A.st^2,A.st*A.di + A.di*A.st)
+  # else
+    # error("^(DualNum{FloatMatrix},b::Integer) not yet defined for b>2")
+	# #can be done by recursive squaring--- see e.g. Julia's power_by_squaring()
 end
 
 
