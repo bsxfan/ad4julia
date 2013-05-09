@@ -36,12 +36,18 @@ det{T<:FloatMatrix}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);dualnum(y,y*dot(
 
 
 
+#chol (remember FloatScalar == Linalg.BlasFloat)
+immutable DualCholesky{T<:FloatScalar}
+  st::Cholesky{T} 
+  di::Matrix{T}
+end
 
-#chol
-# function logdet{T}(C::Cholesky{T})
-    # dd = zero(T)
-    # for i in 1:size(C.UL,1) dd += log(C.UL[i,i]) end
-    # 2*dd
-# end
+function cholfact{T<:FloatScalar(X::DualNum{matrix{T}})
+    return DualCholesky{T}(cholfact(X.st),X.di)
+end
 
-#lu
+function \{T<:FloatScalar}(C::DualCholesky{T},B::FloatArray{T}) = 
+    Y = C.st\B.st
+    return dualnum(Y, C.st\(B.di - C.di*Y))
+end
+
