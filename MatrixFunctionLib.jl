@@ -59,8 +59,8 @@ end
 #     return dualnum(Y, C.st\(B.di - C.di*Y))
 # end
 
-typealias 
-function (\){T<:FloatScalar}(C::DualCholesky{T}, B::DualNum{Matrix{T}}) 
+
+function (\){T<:FloatScalar}(C::DualCholesky{T}, B::DualNum{FloatArray{T}}) 
     Y = C.st\B.st
     return dualnum(Y, C.st\(B.di - C.di*Y))
 end

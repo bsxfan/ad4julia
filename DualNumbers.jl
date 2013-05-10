@@ -9,22 +9,23 @@ typealias FloatComplex Union(Complex128,Complex64)
 typealias FloatScalar Union(FloatReal, FloatComplex)  # identical to Linalg.BlasFloat
 typealias FloatVector{T<:FloatScalar} Array{T,1}
 typealias FloatMatrix{T<:FloatScalar} Array{T,2}
-#typealias FloatArray{T<:FloatScalar} Union(FloatMatrix{T}, FloatVector{T})
-typealias FloatArray Union(FloatMatrix, FloatVector)
-typealias FloatNum Union(FloatScalar, FloatArray)
+typealias FloatArray{T<:FloatScalar} Union(FloatMatrix{T}, FloatVector{T})
+#typealias FloatArray Union(FloatMatrix, FloatVector)
+#typealias FloatNum Union(FloatScalar, FloatArray)
+typealias FloatNum{T<:FloatScalar} Union(T, FloatArray{T})
 
 typealias FixReal Union(Integer,Rational)
 typealias FixComplex{T<:FixReal} Complex{T}
 typealias FixScalar Union(FixReal,FixComplex)
 typealias FixVector{T<:FixScalar} Array{T,1}
 typealias FixMatrix{T<:FixScalar} Array{T,2}
-typealias FixArray Union(FixMatrix,FixVector)
-typealias FixNum Union(FixScalar,FixArray)
+typealias FixArray{T<:FixScalar} Union(FixMatrix{T},FixVector{T})
+typealias FixNum{T<:FixScalar} Union(T,FixArray{T})
 
 typealias RealScalar Union(FloatReal,FixReal)
 typealias RealVector{T<:RealScalar} Array{T,1} 
 typealias RealMatrix{T<:RealScalar} Array{T,2} 
-typealias RealNum Union(RealScalar,RealVector,RealMatrix)
+typealias RealNum{T<:RealScalar} Union(T,RealVector{T},RealMatrix{T})
 
 typealias Numeric Union(FloatNum,FixNum) 
 
