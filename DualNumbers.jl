@@ -32,6 +32,10 @@ typealias Numeric Union(FloatNum,FixNum)
 typealias Scalar Union(FloatScalar,FixScalar)
 vec(x::Scalar) = [x]
 
+#a convenient shortcut for copy  --- makes unary+ behave more like unary-
++{T<:Number}(x::Vector{T}) = copy(x)
++{T<:Number}(x::Matrix{T}) = copy(x)
+
 
 #some new promotion rules for vectors and matrices
 promote_rule{A<:FloatScalar,B<:FloatScalar}(::Type{Vector{A}},::Type{Vector{B}}) = Array{promote_type(A,B),1}
