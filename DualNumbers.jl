@@ -9,6 +9,7 @@ typealias FloatComplex Union(Complex128,Complex64)
 typealias FloatScalar Union(FloatReal, FloatComplex)  # identical to Linalg.BlasFloat
 typealias FloatVector{T<:FloatScalar} Array{T,1}
 typealias FloatMatrix{T<:FloatScalar} Array{T,2}
+#typealias FloatArray{T<:FloatScalar} Union(FloatMatrix{T}, FloatVector{T})
 typealias FloatArray Union(FloatMatrix, FloatVector)
 typealias FloatNum Union(FloatScalar, FloatArray)
 

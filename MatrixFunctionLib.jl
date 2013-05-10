@@ -37,17 +37,30 @@ det{T<:FloatMatrix}(x::DualNum{T}) = (LU=lufact(x.st);y=det(LU);dualnum(y,y*dot(
 
 
 #chol (remember FloatScalar == Linalg.BlasFloat)
+(/){T<:FloatScalar}(B::StridedVecOrMat{T},C::Cholesky{T}) = (C\B.').' #'
+
 immutable DualCholesky{T<:FloatScalar}
   st::Cholesky{T} 
   di::Matrix{T}
 end
 
-function cholfact{T<:FloatScalar(X::DualNum{matrix{T}})
-    return DualCholesky{T}(cholfact(X.st),X.di)
+function cholfact{T<:FloatScalar}(X::DualNum{Matrix{T}})
+    return DualCholesky(cholfact(X.st),X.di)
 end
 
-function \{T<:FloatScalar}(C::DualCholesky{T},B::FloatArray{T}) = 
+
+# function (\){T<:FloatScalar}(C::DualCholesky{T}, B::DualNum{Vector{T}}) 
+#     Y = C.st\B.st
+#     return dualnum(Y, C.st\(B.di - C.di*Y))
+# end
+
+# function (\){T<:FloatScalar}(C::DualCholesky{T}, B::DualNum{Matrix{T}}) 
+#     Y = C.st\B.st
+#     return dualnum(Y, C.st\(B.di - C.di*Y))
+# end
+
+typealias 
+function (\){T<:FloatScalar}(C::DualCholesky{T}, B::DualNum{Matrix{T}}) 
     Y = C.st\B.st
     return dualnum(Y, C.st\(B.di - C.di*Y))
 end
-
