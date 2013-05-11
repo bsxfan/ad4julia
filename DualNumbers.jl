@@ -10,8 +10,6 @@ typealias FloatScalar Union(FloatReal, FloatComplex)  # identical to Linalg.Blas
 typealias FloatVector{T<:FloatScalar} Array{T,1}
 typealias FloatMatrix{T<:FloatScalar} Array{T,2}
 typealias FloatArray{T<:FloatScalar} Union(FloatMatrix{T}, FloatVector{T})
-#typealias FloatArray Union(FloatMatrix, FloatVector)
-#typealias FloatNum Union(FloatScalar, FloatArray)
 typealias FloatNum{T<:FloatScalar} Union(T, FloatArray{T})
 
 typealias FixReal Union(Integer,Rational)
@@ -51,7 +49,6 @@ immutable DualNum{T<:FloatNum}
   st::T # standard part
   di::T # differential part
   function DualNum(s::T,d::T)
-    #println("in inner constructor: $T")
     n=ndims(s)
 	assert(n==ndims(d)<=2,"dimension mismatch")
 	for i=1:n;
@@ -61,19 +58,15 @@ immutable DualNum{T<:FloatNum}
   end
 end
 function dualnum{T<:FloatNum}(s::T,d::T) 
-  #println("in 1st outer constructor")
   return DualNum{T}(s,d)  # construction given float types that agree
 end
 
 function dualnum{S<:Numeric,D<:Numeric}(s::S,d::D) # otherwise convert to floats and force match
-  #println("here: $S and $D")
   if S<:FloatNum && S==D
     return dualnum(s,d)
   elseif  S<:FloatNum && D<:FloatNum
-    #println("here2: $S and $D")
 	s,d = promote(s,d)
 	if typeof(s) == typeof(d)
-      #println("here3: $(typeof(s)) and $(typeof(d))")
       return dualnum(s,d)
 	else
 	  error("cannot promote $(typeof(s)) and $(typeof(d)) to same type")
@@ -184,11 +177,12 @@ setindex!{T1<:FloatArray,T2<:Numeric}(D::DualNum{T1},S::T2,ii...) =
 ############ operator library ###################
 
 #unary 
-+(x::DualNum) = X
++(x::DualNum) = dualnum(+x.st,+x.di)
 -(x::DualNum) = dualnum(-x.st,-x.di)
 ctranspose(x::DualNum) = dualnum(x.st',x.di')
 transpose(x::DualNum) = dualnum(x.st.',x.di.')
 
+#binary
 +(x::DualNum,y::DualNum) = dualnum(x.st+y.st, x.di+y.di)
 +(x::DualNum,y::Numeric) = dualnum(x.st+y, copy(x.di))
 +(x::Numeric,y::DualNum) = dualnum(x+y.st, copy(y.di))
@@ -264,28 +258,18 @@ function (^){T<:FloatMatrix}(A::DualNum{T},b::Integer)
 end
 
 
-######## Matrix Function Library #######################
+######## Libraries of differentiablke functions #######################
 include("MatrixFunctionLib.jl")
-
-######## Vectorized Scalar Function Library #######################
-include("VectorizedScalarFunctionLib.jl")
-
+include("FactorizationLib.jl")
+include("ScalarFunctionLib.jl")
 
 
+#######################  Defines convenient test tools ################
 include("TestTools.jl")
 
 
 end # DualNumbers
 
-
-
-# DualNum = DualNumbers.DualNum
-# dualnum = DualNumbers.dualnum
-# du = DualNumbers.du
-# spart = DualNumbers.spart
-# dpart = DualNumbers.dpart
-# dual2complex = DualNumbers.dual2complex
-# complex2dual = DualNumbers.complex2dual
 
 
 

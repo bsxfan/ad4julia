@@ -2,7 +2,7 @@
 #zero_differential_part!{T<:FloatMatrix}(x::DualNum{T}) = (fill!(x.di,0);x)
 #one_differential_part!{T<:FloatMatrix}(x::DualNum{T},ii...) = (fill!(x.di,0);x.di[ii...]=1;x)
 
-export compareDualAndComplex,compRndDualAndComplex
+export compareDualAndComplex,compRndDualAndComplex,compRndDualAndComplex2
 
 
 printredln(line) = println("\e[91;1m$(line)\e[0m")
@@ -18,7 +18,7 @@ function compareDualAndComplex(f::Function,args,flags)
   dc_args = deepcopy(args[flags])
   Y0 = f(args...)
   @assert dc_args == args[flags] # no side-effect allowed in differentiable arguments
-  @assert isa(Y0,RealNum)  # tuple of Numerics would also be do-able
+  @assert isa(Y0,RealNum)  # tuple of RealNum would also be do-able
   println("  function value size: $(size(Y0))")
   err = 0
   
@@ -36,10 +36,7 @@ function compareDualAndComplex(f::Function,args,flags)
 	  C[i] = complex(A[i],cstepSz)
 	  A[i] = dualnum(A[i],1)
 	  Yd = f(A...)
-	  @show C
-	  @show f(C...)
 	  Yc = complex2dual(f(C...))
-	  @show Yc
 	  verr1 = max(abs(Yd.st-Y0))
 	  verr2 = max(abs(Yc.st-Y0))
 	  derr = max(abs(Yd.di-Yc.di))
@@ -80,8 +77,6 @@ function compareDualAndComplex(f::Function,args,flags)
   end
   printerrln("  all input differentials random, dual vs complex",rerr)
   return max(err,rerr)
-  #compRndDualAndComplex(f,args,flags,true)
-  #return err
 end
 
 
@@ -90,15 +85,15 @@ compRndDualAndComplex(f::Function,args,flags) = compRndDualAndComplex(f,args,fla
 function compRndDualAndComplex(f,args,flags,quiet)
 
   n = length(args)
-  if !quiet; println("Testing differentials: $(sum(flags)) of $n arguments."); end
+  quiet || println("Testing differentials: $(sum(flags)) of $n arguments.")
   @assert n==length(flags)
   @assert all(arg->isa(arg,RealNum),args[flags])
   dc_args = deepcopy(args[flags])
   Y0 = f(args...)
   @assert dc_args == args[flags] # no side-effect allowed in differentiable arguments
-  @assert isa(Y0,RealNum)  # tuple of Numerics would also be do-able
+  @assert isa(Y0,RealNum)  # tuple of RealNum would also be do-able
 
-  if !quiet; println("  function value size: $(size(Y0))"); end
+  quiet || println("  function value size: $(size(Y0))")
 
   
   A = {args...} # convert tuple to Array{Any}
@@ -131,3 +126,55 @@ function compRndDualAndComplex(f,args,flags,quiet)
   return err
 
 end
+
+
+
+compRndDualAndComplex2(f::Function,g::Function,args) = compRndDualAndComplex2(f,g,args,trues(length(args)))
+function compRndDualAndComplex2(f,g,args,flags)
+
+  n = length(args)
+  println("Testing differentials: $(sum(flags)) of $n arguments.")
+  @assert n==length(flags)
+  @assert all(arg->isa(arg,RealNum),args[flags])
+  dc_args = deepcopy(args[flags])
+  Y1 = f(args...)
+  @assert dc_args == args[flags] # no side-effect allowed in differentiable arguments
+  @assert isa(Y1,RealNum)  # tuple of RealNum would also be do-able
+  Y2 = g(args...)
+  @assert dc_args == args[flags] # no side-effect allowed in differentiable arguments
+  @assert isa(Y2,RealNum)  # tuple of RealNum would also be do-able
+
+  println("  function value size: $(size(Y1))")
+
+  
+  A = {args...} # convert tuple to Array{Any}
+  C = copy(A);
+  j = 0
+  for i=1:n           # i indexes all args
+    if !flags[i]; 
+    continue; 
+  else
+    j += 1          # j indexes differentiable args
+  end
+  if length(A[i])==1
+    A[i] = dualnum(A[i],randn())
+  else
+      A[i] = dualnum(A[i],randn(size(A[i])))  
+  end
+  C[i] = dual2complex(A[i])
+  end  
+  Yd = f(A...)
+  Yc = complex2dual(g(C...))
+  verr12 = max(abs(Y1-Y2))
+  verr1 = max(abs(Yd.st-Y1))
+  verr2 = max(abs(Yc.st-Y2))
+  derr = max(abs(Yd.di-Yc.di))
+  printerrln("  max abs function value error between f() and g()",verr1)
+  printerrln("  max abs function value error in dual step",verr1)
+  printerrln("  max abs function value error in complex step",verr2)
+  printerrln("  max abs error between dual and complex differentials",derr)
+  err = max(verr12,verr1,verr2,derr)
+  return err
+
+end
+

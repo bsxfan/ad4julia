@@ -1,4 +1,4 @@
-######## Vectorized Scalar Function Library #######################
+######## Scalar Function Library #######################
 # add new function here as you need them 
 log(x::DualNum) = dualnum(log(x.st),x.di./x.st)
 exp(x::DualNum) = (y=exp(x.st);dualnum(y,x.di.*y))
