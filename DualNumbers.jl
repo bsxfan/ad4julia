@@ -25,6 +25,12 @@ typealias RealVector{T<:RealScalar} Array{T,1}
 typealias RealMatrix{T<:RealScalar} Array{T,2} 
 typealias RealNum{T<:RealScalar} Union(T,RealVector{T},RealMatrix{T})
 
+typealias ComplexScalar Union(FloatComplex,FixComplex)
+typealias ComplexVector{T<:ComplexScalar} Array{T,1} 
+typealias ComplexMatrix{T<:ComplexScalar} Array{T,2} 
+typealias ComplexNum{T<:ComplexScalar} Union(T,ComplexVector{T},ComplexMatrix{T})
+
+
 typealias Numeric Union(FloatNum,FixNum) 
 
 typealias Scalar Union(FloatScalar,FixScalar)
