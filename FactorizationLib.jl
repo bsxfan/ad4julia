@@ -1,107 +1,146 @@
+
+#(factorization element type, RHS element type) => target type for conversion of RHS
+const facttypemap = ((DataType,DataType)=>DataType)[
+
+  (Float64,Float64)=>Float64,
+  (Float32,Float32)=>Float32,
+  (Complex128,Complex128)=>Complex128,
+  (Complex64,Complex64)=>Complex64,
+
+  (Float64,Float32)=>Float64,
+  (Float64,Int32)=>Float64,
+  (Float64,Int64)=>Float64,
+  (Float64,Rational{Int32})=>Float64,
+  (Float64,Rational{Int64})=>Float64,
+
+  (Complex128,Complex64)=>Complex128,
+  (Complex128,Float32)=>Complex128,
+  (Complex128,Float64)=>Complex128,
+  (Complex128,Int32)=>Complex128,
+  (Complex128,Int64)=>Complex128,
+  (Complex128,Rational{Int32})=>Complex128,
+  (Complex128,Rational{Int64})=>Complex128
+
+]
+
+
+function copy_convert_or_transpose{T<:Number}(X::StridedVecOrMat{T},trans::Bool,R::DataType)
+    if !trans 
+      return (T==R)? copy(X) : convert(Array{R,ndims(X)},X)
+    else
+      X = X.'
+      return (T==R)? X: convert(Array{R,ndims(X)},X)
+    end
+end
+
 ############################# Cholesky  #####################################
 
+transpose{T<:Union(Complex64,Complex128)}(C::Cholesky{T}) = Cholesky{T}(conj(C.UL),C.uplo)
+transpose{T<:Union(Float64,Float32)}(C::Cholesky{T}) = C
+ctranspose(C::Cholesky) = C
 
-# first expand the applicability of Cholesky to more types and operators
-#(remember FloatScalar == Linalg.BlasFloat)
-(\){T<:FloatReal,S<:RealScalar}(C::Cholesky{T},B::Vector{S}) = C\convert(Vector{T},B)
-(\){T<:FloatReal,S<:RealScalar}(C::Cholesky{T},B::Matrix{S}) = C\convert(Matrix{T},B)
 
-function (/){T<:FloatScalar}(B::StridedVecOrMat{T},C::Cholesky{T}) 
-   if size(B,1)==1 
-    return (C\B.').' #'
+function ldivide_chol{S<:Number,T<:Number}(C::Cholesky{S}, transC, 
+                                           B::StridedVecOrMat{T}, transB::Bool, 
+                                           R::DataType) 
+  if transC; C = C'; end
+  B = copy_convert_or_transpose(B,transB,R)
+  return LinAlg.LAPACK.potrs!(C.uplo, C.UL, B)
+end
+
+
+function rdivide_chol{S<:Number,T<:Number}(B::StridedVecOrMat{T}, transB::Bool, 
+                                           C::Cholesky{S}, transC::Bool,
+                                           R::DataType) 
+  if size(B,1)==1
+    if ~transC; C = C.'; end
+    B = copy_convert_or_transpose(B,~transB,R)
+    return (LinAlg.LAPACK.potrs!(C.uplo, C.UL, B)) .'   #'
   else
-    return B*inv(C)
+      if transC; C = C.'; end
+      if T!=R; B = convert(Array{R,ndims(B)},B); end
+    return transB? B.' * inv(C) : B * inv(C)
   end
 end
-(/){T<:FloatScalar,S<:RealScalar}(B::Matrix{S},C::Cholesky{T}) = convert(Matrix{T},B)/C
-(/){T<:FloatScalar,S<:RealScalar}(B::Vector{S},C::Cholesky{T}) = convert(Vector{T},B)/C
 
-immutable DualCholesky{T<:FloatScalar}
-  st::Cholesky{T} 
-  di::Matrix{T}
+for (S,T) in keys(facttypemap)
+  R =  facttypemap[S,T]
+  @eval (\)(C::Cholesky{$S},B::StridedVecOrMat{$T}) = ldivide_chol(C,false,B,false,$R)
+  @eval (/)(B::StridedVecOrMat{$T},C::Cholesky{$S}) = rdivide_chol(B,false,C,false,$R)
 end
 
-function cholfact{T<:FloatScalar}(X::DualNum{Matrix{T}})
-    return DualCholesky(cholfact(X.st),X.di)
-end
-function cholfact{T<:FloatScalar}(X::DualNum{T})
-    return DualCholesky(cholfact([X.st]),[X.di])
-end
+############################# LU #####################################
 
 
-/(a::DualNum,b::DualCholesky) = (y=a.st/b.st;dualnum(y, (a.di - y*b.di)/b.st))
-/(a::Numeric,b::DualCholesky) = (y=a/b.st;dualnum(y, - y*b.di/b.st))
-/(a::DualNum,b::Cholesky) = (y=a.st/b;dualnum(y, a.di/b))
-
-\(a::DualCholesky,b::DualNum) = (y=a.st\b.st;dualnum(y, a.st\(b.di - a.di*y)))
-\(a::DualCholesky,b::Numeric) = (y=a.st\b;dualnum(y, -(a.st\a.di*y)))
-\(a::Cholesky,b::DualNum) = (y=a\b.st;dualnum(y, a\b.di))
-
-
-inv(x::DualCholesky) = (y=inv(x.st);dualnum(y,-y*x.di*y))
-
-det(x::DualCholesky) = (y=det(x.st);dualnum(y,y*trace(x.st\x.di)))
-logdet(x::DualCholesky) = (dualnum(logdet(x.st),trace(x.st\x.di)))
-
-
-############################# LU  ##############################
-
-
-#temporary fix for problem with LU \
-# general signature is: function (\)(A::LU, B::StridedVecOrMat)
-function (\){T<:FloatScalar}(A::LU{T}, B::StridedVecOrMat{T}) 
-    A.info>0 && throw(SingularException(A.info))
-    LinAlg.LAPACK.getrs!('N', A.factors, A.ipiv, copy(B))
-end
-
-# let's define / also
-function (/){T<:FloatScalar}(A::LU{T}, B::StridedVecOrMat{T}) 
-    A.info>0 && throw(SingularException(A.info))
-    size(B,1)>1 && return B*inv(C)
-    (LinAlg.LAPACK.getrs!('T', A.factors, A.ipiv, B.')).'  #'
+function ldivide_chol{S<:Number,T<:Number}(C::LU{S}, transC, 
+                                           B::StridedVecOrMat{T}, transB::Bool, 
+                                           R::DataType) 
+  if C.info > 0; throw(SingularException(C.info)); end
+  B = copy_convert_or_transpose(B,transB,R)
+  return LinAlg.LAPACK.getrs!(transC?'T':'N', C.factors, C.ipiv, B)
 end
 
 
-#now expand to more types 
-(\){T<:FloatReal,S<:RealScalar}(C::LU{T},B::Vector{S}) = C\convert(Vector{T},B)
-(\){T<:FloatReal,S<:RealScalar}(C::LU{T},B::Matrix{S}) = C\convert(Matrix{T},B)
-(\){T<:FloatComplex,S<:ComplexScalar}(C::LU{T},B::Vector{S}) = C\convert(Vector{T},B)
-(\){T<:FloatComplex,S<:ComplexScalar}(C::LU{T},B::Matrix{S}) = C\convert(Matrix{T},B)
-(\){T<:FloatComplex,S<:RealScalar}(C::LU{T},B::Vector{S}) = C\convert(Vector{T},B)
-(\){T<:FloatComplex,S<:RealScalar}(C::LU{T},B::Matrix{S}) = C\convert(Matrix{T},B)
-
-(/){S<:RealScalar,T<:FloatReal}(B::Vector{S},C::LU{T}) = convert(Vector{T},B)/C
-(/){S<:RealScalar,T<:FloatReal}(B::Matrix{S},C::LU{T},) = convert(Matrix{T},B)/C
-(/){S<:ComplexScalar,T<:FloatComplex}(B::Vector{S},C::LU{T}) = convert(Vector{T},B)/C
-(/){S<:ComplexScalar,T<:FloatComplex}(B::Matrix{S},C::LU{T}) = convert(Matrix{T},B)/C
-(/){S<:RealScalar,T<:FloatComplex}(B::Vector{S},C::LU{T}) = convert(Vector{T},B)/C
-(/){S<:RealScalar,T<:FloatComplex}(B::Matrix{S},C::LU{T},) = convert(Matrix{T},B)/C
-
-immutable DualLU{T<:FloatScalar}
-  st::LU{T} 
-  di::Matrix{T}
+function rdivide_chol{S<:Number,T<:Number}(B::StridedVecOrMat{T}, transB::Bool, 
+                                           C::LU{S}, transC::Bool,
+                                           R::DataType) 
+  if C.info > 0; throw(SingularException(C.info)); end
+  if size(B,1)==1
+    B = copy_convert_or_transpose(B,~transB,R)
+    return (LinAlg.LAPACK.getrs!(transC?'T':'N', C.factors, C.ipiv, B)) .'   #'
+  else
+    if transC; C = C.'; end
+    if T!=R; B = convert(Array{R,ndims(B)},B); end
+    return transB? B.' * inv(C) : B * inv(C)
+  end
 end
 
-function lufact{T<:FloatScalar}(X::DualNum{Matrix{T}})
-    return DualLU(lufact(X.st),X.di)
-end
-function lufact{T<:FloatScalar}(X::DualNum{T})
-    return DualLU(lufact([X.st]),[X.di])
+for (S,T) in keys(facttypemap)
+  R =  facttypemap[S,T]
+  @eval (\)(C::LU{$S},B::StridedVecOrMat{$T}) = ldivide_LU(C,false,B,false,$R)
+  @eval (/)(B::StridedVecOrMat{$T},C::LU{$S}) = rdivide_LU(B,false,C,false,$R)
 end
 
 
-/(a::DualNum,b::DualLU) = (y=a.st/b.st;dualnum(y, (a.di - y*b.di)/b.st))
-/(a::Numeric,b::DualLU) = (y=a/b.st;dualnum(y, - y*b.di/b.st))
-/(a::DualNum,b::LU) = (y=a.st/b;dualnum(y, a.di/b))
-
-\(a::DualLU,b::DualNum) = (y=a.st\b.st;dualnum(y, a.st\(b.di - a.di*y)))
-\(a::DualLU,b::Numeric) = (y=a.st\b;dualnum(y, -(a.st\a.di*y)))
-\(a::LU,b::DualNum) = (y=a\b.st;dualnum(y, a\b.di))
 
 
-inv(x::DualLU) = (y=inv(x.st);dualnum(y,-y*x.di*y))
 
-det(x::DualLU) = (y=det(x.st);dualnum(y,y*trace(x.st\x.di)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function ldivide_LU{S<:Number,T<:Number}(A::LU{S}, B::StridedVecOrMat{T}, R::DataType) 
+  if A.info > 0; throw(SingularException(A.info)); end
+  Bc = T==R? copy(B) : convert(Array{R,ndims(B)},B) 
+  return LinAlg.LAPACK.getrs!('N', A.factors, A.ipiv, Bc)
+end
+
+function rdivide_LU{S<:Number,T<:Number}(B::StridedVecOrMat{T}, A::LU{S}, R::DataType) 
+    if A.info > 0; throw(SingularException(A.info)); end
+    if size(B,1)==1
+      Bt = B.'
+      if T != R; Bt = convert(Array{R,ndims(Bt)},Bt); end
+      return (LinAlg.LAPACK.getrs!('T', A.factors, A.ipiv, Bt)) .'   #'
+    else
+      return (T==R? B : convert(Array{R,ndims(B)},B)) * inv(A)
+    end
+end
+
+for (S,T) in keys(facttypemap)
+  R =  facttypemap[S,T]
+  @eval (\)(C::LU{$S},B::StridedVecOrMat{$T}) = ldivide_LU(C,B,$R)
+  @eval (/)(B::StridedVecOrMat{$T},C::LU{$S}) = rdivide_LU(B,C,$R)
+end
 
 
 
