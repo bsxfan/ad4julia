@@ -63,21 +63,32 @@ function backprop(R::RadNum,G)
     end
 end
 
-#evaluate f(args...) and differentiates w.r.t. each flagged argument
-# Let y = f(args...), then g---the gradient to backpropagate---must be of same size as y
-# returns y and all of the required gradients
-function radeval(f::Function,args,g,flags=trues(length(args)))
+#Evaluate y=f(args...) and differentiates w.r.t. each flagged argument
+# returns y and a function to backpropagate gradients
+function radeval(f::Function,
+	             args,
+	             flags=trues(length(args))
+	            )
 	@assert length(args) == length(flags)
 	flags = bool(flags)
 	n = length(args)
 	args = ntuple(n,i->flags[i]?radnum(args[i]):args[i])
 	Z = f(args...)
-	z = rd(Z)
-    @assert n == backprop(Z,g)
-    dargs = args[flags]
-    m = length(dargs)
-    return tuple(z,ntuple(m,i->dargs[i].gr)...) 
+	y = rd(Z)
+	function do_backprop(g::BaseNum) # g---the gradient to backpropagate---must be of same size as y
+		@assert Z.rcount==1
+    	if Z.wcount==0
+    		@assert n == backprop(Z,g) #called only once, afterwards gradients remain in wrapped arguments
+    	end
+    	@assert Z.wcount==Z.rcount==1
+    	dargs = args[flags]
+    	m = length(dargs)
+    	return ntuple(m,i->dargs[i].gr)
+    end
+    return y, do_backprop 
 end
+
+
 
 
 #################### unary operator library ##############################
