@@ -3,22 +3,61 @@ module RadMatrix
 importall Base
 export RadMat,backprop,radeval
 
-type RadMat{T,N} 
-    st:: Array{T,N} 
-    gr:: Array{T,N}
+
+# this could be specialized or generalized 
+typealias BaseScalar Number
+typealias BaseVector{T<:BaseScalar} Array{T,1}
+typealias BaseMatrix{T<:BaseScalar} Array{T,2}
+typealias BaseArray{T<:BaseScalar} Union(BaseVector{T},BaseMatrix{T})
+typealias BaseNum{T<:BaseScalar} Union(T,BaseArray)
+
+abstract RadNum{T:<BaseScalar}
+
+type RadScalar{T} <: RadNum{T}
+    st:: T 
+    gr:: T
     rcount:: Int
     wcount:: Int
     bp:: Function
-    RadMat(X::Array{T,N},bp::Function) = new(X,zero(X),0,0,bp) 
+    RadScalar(X::T,bp::Function) = new(X,zero(X),0,0,bp) 
 end
-RadMat{T,N}(X::Array{T,N},bp::Function) = RadMat{T,N}(X,bp)
+RadScalar{T,N}(X::BaseMatrix{T},bp::Function) = RadScalar{T,N}(X,bp)
+RadScalar(X) = RadScalar(X,(G)->1)
+
+
+type RadVec{T} <: RadNum{T}
+    st:: BaseVector{T} 
+    gr:: BaseVector{T}
+    rcount:: Int
+    wcount:: Int
+    bp:: Function
+    RadMat(X::BaseVector{T},bp::Function) = new(X,zero(X),0,0,bp) 
+end
+RadVec{T,N}(X::BaseMatrix{T},bp::Function) = RadVec{T,N}(X,bp)
+RadVec(X) = RadVec(X,(G)->1)
+
+
+type RadMat{T,N} <: RadNum{T}
+    st:: BaseMatrix{T}
+    gr:: BaseMatrix{T}
+    rcount:: Int
+    wcount:: Int
+    bp:: Function
+    RadMat(X::BaseMatrix{T},bp::Function) = new(X,zero(X),0,0,bp) 
+end
+RadMat{T,N}(X::BaseMatrix{T},bp::Function) = RadMat{T,N}(X,bp)
 RadMat(X) = RadMat(X,(G)->1)
 
-rd(R::RadMat) = (R.rcount += 1; R.st)
+typealias RadOrNot{T} Union(RadNum{T},BaseNum{T})
+israd(X::RadOrNot) = isa(X,RadNum)
+
+rd(R::RadNum) = (R.rcount += 1; R.st)
+rd(X::BaseNum) = X
 
 # Accumulates gradient, then backpropagates to all inputs.
 # Returns number of inputs for which backprop is complete.
-function backprop{T,N}(R::RadMat{T,N},G::Array{T,N})
+function backprop(R::BaseNum,G) = 0
+function backprop(R::RadNum,G)
 	R.gr += G
 	R.wcount +=1 
 	if R.wcount < R.rcount
@@ -44,24 +83,14 @@ function radeval(f::Function,args,g,flags=trues(length(args)))
 end
 
 
-#################### operator library ##############################
-function (+)(X::RadMat,Y::RadMat)
-    Z = rd(X) + rd(Y)
-    bp = (G)-> backprop(X,G) + backprop(Y,G) 
-    return RadMat(Z,bp) 
-end
+#################### unary operator library ##############################
+(.')(X::RadMat) = RadMat(rd(X).',G -> backprop(X,G.')) 
+(-)(X::RadMat) = RadMat(-rd(X),G -> backprop(X,-G)) 
 
-function (+)(X::RadMat,Y::Array)
-    Z = rd(X) + Y
-    bp = (G)-> backprop(X,G) 
-    return RadMat(Z,bp) 
-end
+#################### binary operator library ##############################
+(+)(X::RadOrNot, Y::RadOrNot) = RadMat(rd(X) + rd(Y), G -> backprop(X,G) + backprop(Y,G) ) 
+(-)(X::RadOrNot, Y::RadOrNot) = RadMat(rd(X) - rd(Y), G -> backprop(X,G) + backprop(Y,-G) ) 
 
-function (+)(X::Array,Y::RadMat)
-    Z = X + rd(Y)
-    bp = (G)-> backprop(Y,G) 
-    return RadMat(Z,bp) 
-end
 
 end # module
 
