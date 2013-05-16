@@ -33,18 +33,30 @@ function copy_convert_or_transpose{T<:Number}(X::StridedVecOrMat{T},trans::Bool,
     end
 end
 
+function copy_convert_or_transpose{T<:Number}(X::StridedVecOrMat{T},trans::Bool,R::DataType)
+    if !trans 
+      return (T==R)? copy(X) : convert(Array{R,ndims(X)},X)
+    else
+      X = X.'
+      return (T==R)? X: convert(Array{R,ndims(X)},X)
+    end
+end
+
 ############################# Cholesky  #####################################
 
-transpose{T<:Union(Complex64,Complex128)}(C::Cholesky{T},shallow=false) = 
-  Cholesky{T}(conj(C.UL),C.uplo) #all copied
-transpose{T<:Union(Float64,Float32),shallow=false}(C::Cholesky{T}) = shallow?C:copy(C)
-ctranspose(C::Cholesky,shallow=false) = shallow?C:copy(C)
+transpose{T<:Union(Complex64,Complex128)}(C::Cholesky{T}) = Cholesky{T}(conj(C.UL),C.uplo) 
+transpose!{T<:Union(Complex64,Complex128)}(C::Cholesky{T}) = Cholesky{T}(conj!(C.UL),C.uplo) 
+transpose{T<:Union(Float64,Float32)}(C::Cholesky{T}) = copy(C)
+transpose!{T<:Union(Float64,Float32)}(C::Cholesky{T}) = C
+
+ctranspose(C::Cholesky,shallow=false) = copy(C)
+ctranspose!(C::Cholesky,shallow=false) = C
 
 
 function ldivide_chol{S<:Number,T<:Number}(C::Cholesky{S}, transC, 
                                            B::StridedVecOrMat{T}, transB::Bool, 
                                            R::DataType) 
-  if transC; C = transpose(C,true); end
+  if transC; C = transpose!(C); end
   B = copy_convert_or_transpose(B,transB,R)
   return LinAlg.LAPACK.potrs!(C.uplo, C.UL, B)  
 end
@@ -54,7 +66,7 @@ function rdivide_chol{S<:Number,T<:Number}(B::StridedVecOrMat{T}, transB::Bool,
                                            C::Cholesky{S}, transC::Bool,
                                            R::DataType) 
   if size(B,1)==1
-    if ~transC; C = transpose(C,true); end
+    if ~transC; C = transpose!(C); end
     B = copy_convert_or_transpose(B,~transB,R)
     return (LinAlg.LAPACK.potrs!(C.uplo, C.UL, B)) .'   #'
   else
