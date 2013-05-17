@@ -6,9 +6,9 @@ export procrustean_add!
 # - broadcasting S for k, such that size(S,k) == 1 < size(D,k)
 # - summing S for k ,such that size(S,k) > size(D,k) ==1
 # Notes: 
-# 1. Can promote shape and type of D; 
-# 2. This tries to update D in-place, but this is not always possible.
-#    Aways use the return value, the identity of D may change
+# 1. Can promote shape and type of D.
+# 2. Tries to update D in-place, but this is not always possible.
+#    Aways use the return value, the identity of D may change.
 
 
 procrustean_add!(D::Number,S::Number) = D + S  
@@ -36,9 +36,9 @@ function procrustean_add!(D::AbstractArray,S::AbstractArray)
 
     if length(S)==1; return procrustean_add!(D,S[1]); end  # collapse S to scalar, broadcast over D
     
-    # add in-place of possible, broadcasting not implemented yet---will crash when adding vec to mat
+    # add in-place if possible, broadcasting not implemented yet---will crash when adding vec to mat
     if eltype(D)==eltype(S) # work in-place
-        D = reshape(D,promote_shape(size(D),size(S))) #new identity, same data, can pro
+        D = reshape(D,promote_shape(size(D),size(S))) #new identity, same data
         for i=1:length(D)
             D[i] += S[i]  
         end

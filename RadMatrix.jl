@@ -134,7 +134,7 @@ end
 
 
 #################### matrix function library ##########################################
-trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R,G)) #scalar G will be broadcast back to matrix
+trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R,diagm(G*ones(size(R,1))))) 
 
 
 
