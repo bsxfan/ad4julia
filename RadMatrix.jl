@@ -55,7 +55,6 @@ rd(X::BaseNum) = X #for convenience, simplifies code below
 # Returns number of inputs for which backprop is complete.
 backprop(R::BaseNum,G) = 0 #for convenience, simplifies code below
 function backprop(R::RadNum,G)
-	#R.gr += G
 	R.gr = procrustean_add!(R.gr,G)
 	R.wcount +=1 
 	if R.wcount < R.rcount
@@ -95,10 +94,14 @@ function radeval(f::Function,
 end
 
 
+#################### matrix wiring #######################################
+reshape(R::RadNum,ii...) = (s = size(R);radnum(reshape(rd(R),ii...),G->backprop(R,reshape(G,s)))) 
+vec(R::RadNum) = reshape(R,length(R))
+
 
 
 #################### unary operator library ##############################
-(.')(X::RadNum) = radnum(rd(X).',G -> backprop(X,G.')) 
+transpose(X::RadNum) = radnum(rd(X).',G -> backprop(X,G.')) 
 (-)(X::RadNum) = radnum(-rd(X),G -> backprop(X,-G)) 
 (+)(X::RadNum) = radnum(+rd(X),G -> backprop(X,+G)) 
 
@@ -118,10 +121,22 @@ for (L,R) in ( (:RadNum,:BaseNum), (:BaseNum,:RadNum), (:RadNum,:RadNum) )
         function (*)(X::$L, Y::$R) 
         	Xst = rd(X)
         	Yst = rd(Y)
-        	radnum(Xst * Yst, G -> backprop(X,Yst.'*G) + backprop(Y,G*Xst.') ) 
+        	radnum(Xst * Yst, G -> backprop(X,G*Yst.') + backprop(Y,Xst.'*G) ) 
         end
+
+
+        #At_mul_B
+        #A_mul_Bt
+        #At_mul_Bt
     end
 end
+
+
+
+#################### matrix function library ##########################################
+trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R,G)) #scalar G will be broadcast back to matrix
+
+
 
 
 end # module
