@@ -1,5 +1,7 @@
 module RadMatrix
 
+using Procrustes
+
 importall Base
 export RadNum,RadScalar,RadVec,RadMat,  #types
        radnum,backprop,radeval                 #functions 
@@ -7,18 +9,19 @@ export RadNum,RadScalar,RadVec,RadMat,  #types
 
 # this could be specialized or generalized 
 typealias BaseScalar Number
-typealias BaseVec{T<:BaseScalar} Array{T,1}
-typealias BaseMat{T<:BaseScalar} Array{T,2}
-typealias BaseArray{T<:BaseScalar} Union(BaseVec{T},BaseMat{T})
-typealias BaseNum{T<:BaseScalar} Union(T,BaseArray)
+#typealias BaseVec{T<:BaseScalar} Array{T,1}
+typealias BaseMat{T<:BaseScalar} Array{T}
+#typealias BaseArray{T<:BaseScalar} Union(BaseVec{T},BaseMat{T})
+#typealias BaseNum{T<:BaseScalar} Union(T,BaseArray)
+typealias BaseNum{T<:BaseScalar} Union(T,BaseMat)
 
-abstract RadNum{T<:BaseScalar}
+abstract RadNum
 
 # declare RadScalar, RadVec and RadMat
 bpInputNode(G)=1 # input nodes do not backpropate further
-for (BaseType,RadType) in ( (:T,:RadScalar), (:(BaseVec{T}), :RadVec), (:(BaseMat{T}), :RadMat) )
+for (BaseType,RadType) in ( (:BaseScalar,:RadScalar), (:BaseVec, :RadVec), (:BaseMat, :RadMat) )
 	@eval begin
-		type $RadType{T} <: RadNum{T}
+		type $RadType <: RadNum
 		    st:: $BaseType
 		    gr:: $BaseType
 		    rcount:: Int
@@ -26,12 +29,12 @@ for (BaseType,RadType) in ( (:T,:RadScalar), (:(BaseVec{T}), :RadVec), (:(BaseMa
 		    bp:: Function #backpropagates to all parents, returns number of inputs for which backprop completed
 		    $RadType(X::$BaseType,bp::Function) = new(X,zero(X),0,0,bp) #constructor
 		end
-        # conversions from each BaseNum flavours to corresponding RadNum flavour
-        radnum{T<:BaseScalar}(X::$BaseType,bp::Function=bpInputNode) = $RadType{T}(X,bp)  
+        # conversions from each BaseNum flavour to corresponding RadNum flavour
+        radnum(X::$BaseType,bp::Function=bpInputNode) = $RadType(X,bp)  
 	end
 end
 
-typealias RadOrNot{T<:BaseScalar} Union(RadNum{T},BaseNum{T})
+typealias RadOrNot Union(RadNum,BaseNum)
 israd(X::RadOrNot) = isa(X,RadNum)
 
 
@@ -52,7 +55,8 @@ rd(X::BaseNum) = X #for convenience, simplifies code below
 # Returns number of inputs for which backprop is complete.
 backprop(R::BaseNum,G) = 0 #for convenience, simplifies code below
 function backprop(R::RadNum,G)
-	R.gr += G
+	#R.gr += G
+	R.gr = procrustean_add!(R.gr,G)
 	R.wcount +=1 
 	if R.wcount < R.rcount
 		return 0
@@ -78,7 +82,9 @@ function radeval(f::Function,
 	function do_backprop(g::BaseNum) # g---the gradient to backpropagate---must be of same size as y
 		@assert Z.rcount==1
     	if Z.wcount==0
-    		@assert n == backprop(Z,g) #called only once, afterwards gradients remain in wrapped arguments
+    		@assert n == backprop(Z,g) 
+    	else
+    	    error("this function cannot be called more than once")
     	end
     	@assert Z.wcount==Z.rcount==1
     	dargs = args[flags]
