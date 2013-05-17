@@ -77,18 +77,18 @@ function radeval(f::Function,
 	flags = bool(flags)
 	n = length(args)
 	args = ntuple(n,i->flags[i]?radnum(args[i]):args[i])
+ 	dargs = args[flags]
+   	m = length(dargs)
 	Z = f(args...)
 	y = rd(Z)
 	function do_backprop(g::BaseNum) # g---the gradient to backpropagate---must be of same size as y
 		@assert Z.rcount==1
     	if Z.wcount==0
-    		@assert n == backprop(Z,g) 
+    		@assert m == backprop(Z,g) 
     	else
     	    error("this function cannot be called more than once")
     	end
     	@assert Z.wcount==Z.rcount==1
-    	dargs = args[flags]
-    	m = length(dargs)
     	return ntuple(m,i->dargs[i].gr)
     end
     return y, do_backprop 
