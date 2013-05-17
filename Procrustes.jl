@@ -5,10 +5,25 @@ export procrustean_add!
 # Implements D += S with:
 # - broadcasting S for k, such that size(S,k) == 1 < size(D,k)
 # - summing S for k ,such that size(S,k) > size(D,k) ==1
+# Notes: 
+# 1. Can promote shape and type of D; 
+# 2. This tries to update D in-place, but this is not always possible.
+#    Aways use the return value, the identity of D may change
 
-procrustean_add!(D::Number,S::Number) = D+S  
-procrustean_add!(D::Number,S::AbstractArray) = D+sum(S)  
-procrustean_add!(D::AbstractArray,S::Number) = (for i=1:length(D);D[i] += S;end;D)  
+
+procrustean_add!(D::Number,S::Number) = D + S  
+procrustean_add!(D::Number,S::AbstractArray) = D + sum(S)  
+
+function procrustean_add!(D::AbstractArray,S::Number) 
+    if eltype(D)==typeof(S)
+        for i=1:length(D)
+            D[i] += S # work in-place 
+        end
+        return D
+    else
+        return D+S  # creates a new matrix
+    end
+end
 
 function procrustean_add!(D::AbstractArray,S::AbstractArray)
     # sum if necessary
@@ -19,18 +34,19 @@ function procrustean_add!(D::AbstractArray,S::AbstractArray)
     	end
     end
 
-    # now add with broadcasting
-    if length(S) ==1 
-    	return procrustean_add!(D,S[1])     # collapse S to scalar, broadcast over D
-    elseif length(D) == length(S)  #should maybe check shapes properly, not just length
-        for i=1:length(D)     
-            D[i] += S[i]
+    if length(S)==1; return procrustean_add!(D,S[1]); end  # collapse S to scalar, broadcast over D
+    
+    # add in-place of possible, broadcasting not implemented yet---will crash when adding vec to mat
+    if eltype(D)==eltype(S) # work in-place
+        D = reshape(D,promote_shape(size(D),size(S))) #new identity, same data, can pro
+        for i=1:length(D)
+            D[i] += S[i]  
         end
-    else
-        error("broadcasting t.b.d.")
+        return D
+    else # create new
+        return D + S 
     end
      
-    return D
 end
 
 # In Greek mythology, Procrustes was a rogue smith and bandit who attacked people by stretching them,

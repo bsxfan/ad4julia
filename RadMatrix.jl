@@ -9,17 +9,14 @@ export RadNum,RadScalar,RadVec,RadMat,  #types
 
 # this could be specialized or generalized 
 typealias BaseScalar Number
-#typealias BaseVec{T<:BaseScalar} Array{T,1}
 typealias BaseMat{T<:BaseScalar} Array{T}
-#typealias BaseArray{T<:BaseScalar} Union(BaseVec{T},BaseMat{T})
-#typealias BaseNum{T<:BaseScalar} Union(T,BaseArray)
 typealias BaseNum{T<:BaseScalar} Union(T,BaseMat)
 
 abstract RadNum
 
-# declare RadScalar, RadVec and RadMat
+# declare RadScalar and RadMat
 bpInputNode(G)=1 # input nodes do not backpropate further
-for (BaseType,RadType) in ( (:BaseScalar,:RadScalar), (:BaseVec, :RadVec), (:BaseMat, :RadMat) )
+for (BaseType,RadType) in ( (:BaseScalar,:RadScalar), (:BaseMat, :RadMat) )
 	@eval begin
 		type $RadType <: RadNum
 		    st:: $BaseType
@@ -27,7 +24,10 @@ for (BaseType,RadType) in ( (:BaseScalar,:RadScalar), (:BaseVec, :RadVec), (:Bas
 		    rcount:: Int
 		    wcount:: Int
 		    bp:: Function #backpropagates to all parents, returns number of inputs for which backprop completed
-		    $RadType(X::$BaseType,bp::Function) = new(X,zero(X),0,0,bp) #constructor
+		    function $RadType(X::$BaseType,bp::Function) #constructor
+		    	assert(ndims(X)<=2,"RAD types limited to scalars, vectors and matrices")
+		        new(X,zero(X),0,0,bp) 
+		    end
 		end
         # conversions from each BaseNum flavour to corresponding RadNum flavour
         radnum(X::$BaseType,bp::Function=bpInputNode) = $RadType(X,bp)  
@@ -100,6 +100,7 @@ end
 #################### unary operator library ##############################
 (.')(X::RadNum) = radnum(rd(X).',G -> backprop(X,G.')) 
 (-)(X::RadNum) = radnum(-rd(X),G -> backprop(X,-G)) 
+(+)(X::RadNum) = radnum(+rd(X),G -> backprop(X,+G)) 
 
 
 #################### binary operator library ##############################
@@ -107,6 +108,18 @@ for (L,R) in ( (:RadNum,:BaseNum), (:BaseNum,:RadNum), (:RadNum,:RadNum) )
 	@eval begin
         (+)(X::$L, Y::$R) = radnum(rd(X) + rd(Y), G -> backprop(X,G) + backprop(Y,G) ) 
         (-)(X::$L, Y::$R) = radnum(rd(X) - rd(Y), G -> backprop(X,G) + backprop(Y,-G) ) 
+        
+        function (.*)(X::$L, Y::$R) 
+        	Xst = rd(X)
+        	Yst = rd(Y)
+        	radnum(Xst .* Yst, G -> backprop(X,G.*Yst) + backprop(Y,G.*Xst) ) 
+        end
+        
+        function (*)(X::$L, Y::$R) 
+        	Xst = rd(X)
+        	Yst = rd(Y)
+        	radnum(Xst * Yst, G -> backprop(X,Yst.'*G) + backprop(Y,G*Xst.') ) 
+        end
     end
 end
 
