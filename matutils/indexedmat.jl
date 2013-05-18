@@ -23,10 +23,14 @@ function IndexedMat(data::Vector, rd, sz:: (Int,Int) )
     return IndexedMat(data,rd,sz,1:sz[1],1:sz[2])  
 end
 
+typealias IndexedMat1{T} IndexedMat{T,1}
+typealias IndexedMat2{T} IndexedMat{T,2}
+
 size(M::IndexedMat) = M.sz
 
-function full{T}(M::IndexedMat{T,1}) 
-	F = zeros(T,M.sz)
+full(M::IndexedMat) = full!(zeros(eltype(M.data),M.sz), M)
+
+function full!(F::Matrix,M::IndexedMat1) 
     rd,ri,rj = (M.rd[1],M.ri,M.rj)
     @assert length(rd) == length(ri) == length(rj)
     i,j = (first(ri),first(rj))
@@ -39,8 +43,7 @@ function full{T}(M::IndexedMat{T,1})
     return F
 end
 
-function full{T}(M::IndexedMat{T,2}) 
-    F = zeros(T,M.sz)
+function full!(F::Matrix,M::IndexedMat2) 
     rdi,rdj = (M.rd[1],M.rd[2])
     @assert length(rdj)==length(M.rj)  
     @assert length(rdi)==length(M.ri)  
@@ -59,6 +62,8 @@ function full{T}(M::IndexedMat{T,2})
     end
     return F
 end
+
+
 
 show(io::IO, M::IndexedMat) = (println(io,"IndexedMat -> "); show(io,full(M)) )
 
