@@ -14,7 +14,7 @@ export procrustean_add!
 procrustean_add!(D::Number,S::Number) = D + S  
 procrustean_add!(D::Number,S::AbstractArray) = D + sum(S)  
 
-function procrustean_add!(D::AbstractArray,S::Number) 
+function procrustean_add!(D::Array,S::Number) 
     if eltype(D)==typeof(S)
         for i=1:length(D)
             D[i] += S # work in-place 
@@ -25,7 +25,7 @@ function procrustean_add!(D::AbstractArray,S::Number)
     end
 end
 
-function procrustean_add!(D::AbstractArray,S::AbstractArray)
+function procrustean_add!(D::Array,S::Array)
     # sum if necessary
     for k=1:ndims(S)
     	if size(S,k) > size(D,k)
