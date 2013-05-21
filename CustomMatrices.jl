@@ -28,43 +28,27 @@ size(M::CustomMatrix) = (M.m,M.n)
 
 # If element types allow, do D += C in-place in D.
 # else creates new D
+accumulate!{T,N}(D::Vector,C::CustomMatrix) = accumulate!(reshape(D,length(D),1),C)
 function accumulate!{T<:Number,F<:Flavour,E<:Number}(D::Matrix{T},C::CustomMatrix{F,E})
   if (T<:Integer && E<:Union(FloatingPoint,Complex) ) || 
      (T<:FloatingPoint && E<:Complex)
     P = promote_type(T,E)
     N = Array(P,size(D))
     copy!(N,D)
-    add()
+    return update!(0,N,C)
   else
-
+    return update!(1,D,C)
   end
 end
 
 
 
-# All flavours have add!(D,S) and add!(D,S,R) methods, which efficiently implements D += S (+ R) in-place, for full
-# matrix D and Custom matrices S,R.
-
-# Only dense flavours have an update!(d,D,S) method, in which case add!(D,S) = update!(1,D,S)
-add!{F<:DenseFlavour}(D::Matrix,S::CustomMatrix{F}) = update!(1,D,S)  #
-add!{F<:DenseFlavour,G<:DenseFlavour}(D::Matrix,L::CustomMatrix{F},R::CustomMatrix{G}) = update!(1,D,L,R) 
-
-function add!{F<:SparseFlavour,G<:SparseFlavour}(D::Matrix,L::CustomMatrix{F},R::CustomMatrix{G})
-    if applicable(+,L,R) 
-      return add!(D,L+R)
-    else
-      return add!(add!(D,L),R)
-    end
-end
-
-add!{F<:SparseFlavour,G<:DenseFlavour}(D::Matrix,L::CustomMatrix{F},R::CustomMatrix{G}) = add!(D,R,L)
-add!{F<:DenseFlavour,G<:SparseFlavour}(D::Matrix,L::CustomMatrix{F},R::CustomMatrix{G}) = add!(add!(D,L),R)
 
 
 
 full(M::CustomMatrix) = full(M,eltype(M))
-full{F<:SparseFlavour}(M::CustomMatrix{F},elty::DataType) = add!(zeros(elty,size(M)),M)
-full{F<:DenseFlavour}(M::CustomMatrix{F},elty::DataType) = update!(0,Array(elty,size(M)),M) #faster
+full{F<:SparseFlavour}(M::CustomMatrix{F},elty::DataType) = update!(0,zeros(elty,size(M)),M)
+full{F<:DenseFlavour}(M::CustomMatrix{F},elty::DataType) = update!(0,Array(elty,size(M)),M) 
 
 show(io::IO,M::CustomMatrix) = (print(io,typeof(M));println("->");show(io,full(M)))
 
@@ -75,12 +59,6 @@ copy!{F<:DenseFlavour}(D::Matrix,S::CustomMatrix{F}) = update!(0,D,S)
 convert{D<:Number,S<:Number,F<:Flavour}(::Type{Matrix{D}},M::CustomMatrix{F,S}) = full(M,D)
 
 
-
-# function (+){a,b,F}(A::Matrix{a},B::CustomMatrix{F,b}) 
-#   assert(size(A)==size(B),"size mismatch")
-#   D = zeros()
-# end
-  
 
 ###################################################################
 type repcol <: DenseFlavour end
@@ -147,7 +125,7 @@ function (+)(A::CustomMatrix{F1,E1},B::CustomMatrix{F2,E2})
     return update!(0,D,A,B)
   else
     D = zeros(T,size(A))
-    return add!(D,A,B)
+    return update!(0,D,A,B)
   end
 
 end 
