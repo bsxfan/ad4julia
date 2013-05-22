@@ -1,56 +1,70 @@
 module Buggy
 
+bug = false
+
 importall Base
 
-export sparseblock
+export blocksparse
 
 abstract Flavour
   abstract DenseFlavour <: Flavour
   abstract SparseFlavour <: Flavour
 
 
-immutable CustomMatrix{F<:Flavour,E,D} 
-    data::D
-    m::Int
-    n::Int
+if bug 
+  @eval begin
+    immutable CustomMatrix{F<:Flavour,E,D} #<: AbstractArray{E}
+        data::D
+        m::Int
+        n::Int
+    end
+    eltype{F,E}(C::CustomMatrix{F,E}) = E
+  end 
+else 
+  @eval begin
+    immutable CustomMatrix{F<:Flavour,E,D} <: AbstractArray{E}
+        data::D
+        m::Int
+        n::Int
+    end
+  end
 end
+
+
 CustomMatrix{D}(F::DataType,data::D,m::Int,n::Int) = CustomMatrix{F,eltype(data),D}(data,m,n)
 size(M::CustomMatrix) = (M.m,M.n)
-eltype{F,E}(C::CustomMatrix{F,E}) = E
-copy{F}(M::CustomMatrix{F}) = CustomMatrix(F,M.data,M.m,M.n) 
-
 
 full(M::CustomMatrix) = full(M,eltype(M))
 full{F<:SparseFlavour}(M::CustomMatrix{F},elty::DataType) = zeros(elty,size(M))
 #full{F<:SparseFlavour,E}(M::CustomMatrix{F,E}) = zeros(E,size(M))
 
 
-
-immutable blocksparse{T<:Number} <: SparseFlavour 
+type blocksparse <: SparseFlavour end
+immutable blockdata{T<:Number} 
   block::Matrix{T}
   at::(Int,Int)
 end
-blocksparse{T}(block::Matrix{T},at::(Int,Int)) = {T}blocksparse(block,at)
-eltype{T}(B::blocksparse{T}) = T
+blockdata{T}(block::Matrix{T},at::(Int,Int)) = {T}blockdata(block,at)
+eltype{T}(B::blockdata{T}) = T
 
 
 
 
-function sum(B::blocksparse,i::Int)
+function sum(B::blockdata,i::Int)
     if i==1
-      blocksparse(sum(B.block,i),(1,B.at[2]))  
+      blockdata(sum(B.block,i),(1,B.at[2]))  
     elseif i==2
-      blocksparse(sum(B.block,i),(B.at[1],1))  
+      blockdata(sum(B.block,i),(B.at[1],1))  
     else
       error("bad i")
     end
 end
 
-function sparseblock(block::Matrix,at::(Int,Int),sz::(Int,Int)) 
+function blocksparse(block::Matrix,at::(Int,Int),sz::(Int,Int)) 
   for i=1:2 assert(1 <= at[i] <= sz[i] - size(block,i) + 1,
     "$(size(block)) block does not fit at $at in $sz matrix") 
     end
-  return CustomMatrix(blocksparse,blocksparse(block,at),sz...)
+  return CustomMatrix(blocksparse,blockdata(block,at),sz...)
 end
 
 
