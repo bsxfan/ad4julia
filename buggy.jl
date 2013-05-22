@@ -1,6 +1,6 @@
 module Buggy
 
-bug = false
+bug = true
 
 importall Base
 
