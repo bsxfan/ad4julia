@@ -68,6 +68,7 @@ function sum(C::CustomMatrix{blocksparse},i::Int)
       @which full(S)
       println(eltype(S))
       #return S
+      @which zeros(eltype(S),size(S))
       return full(S)
     elseif i==2
       S = CustomMatrix(blocksparse,sum(C.data,i),C.m,1)
