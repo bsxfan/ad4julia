@@ -2,18 +2,27 @@ module CustomMatrices
 
 importall Base
 
-export DenseFlavour,repcol,reprow,
-       SparseFlavour,repdiag,fulldiag,blocksparse
+export DenseFlavour,repcol,reprow,colplusrow,rankone,
+       SparseFlavour,repdiag,fulldiag,blocksparse,
+       flavour
 
 abstract Flavour
-abstract DenseFlavour <: Flavour
-#reprow
-#repcol
-abstract SparseFlavour <: Flavour
-#blocksparse
-abstract DiagFlavour <: SparseFlavour
-#repdiag
-#fulldiag
+  abstract DenseFlavour <: Flavour
+    #colplusrow: reprow + repcol
+    #toeplitz t.b.d.
+    abstract RankOne <:DenseFlavour
+      #reprow
+      #repcol
+
+  abstract SparseFlavour <: Flavour
+    #blocksparse
+    abstract DiagFlavour <: SparseFlavour
+      #repdiag
+      #fulldiag
+
+isinvertible{F<:DiagFlavour}(::Type{F}) = true
+isinvertible{F<:Flavour}(::Type{F}) = false
+
 
 
 
@@ -24,6 +33,10 @@ immutable CustomMatrix{F<:Flavour,E,D} <: AbstractMatrix{E}
 end
 CustomMatrix{D}(F::DataType,data::D,m::Int,n::Int) = CustomMatrix{F,eltype(data),D}(data,m,n)
 size(M::CustomMatrix) = (M.m,M.n)
+flavour{F<:Flavour}(::CustomMatrix{F}) = F
+#eltype() is given by AbstractMatrix
+
+
 
 
 # If element types allow, do D += C in-place in D.
@@ -58,155 +71,48 @@ copy!{F<:DenseFlavour}(D::Matrix,S::CustomMatrix{F}) = update!(0,D,S)
 #custom to full
 convert{D<:Number,S<:Number,F<:Flavour}(::Type{Matrix{D}},M::CustomMatrix{F,S}) = full(M,D)
 
+#addition is closed within most flavours (some other additions between different flavours are defined below)
+function (+){F}(A::CustomMatrix{F},B::CustomMatrix{F})  
+    assert(size(A)==size(B),"size mismatch")
+    return CustomMatrix(F,A.data + B.data,size(A)...)
+end
 
+function (+){F,G}(A::CustomMatrix{F},B::CustomMatrix{G})  
+   error("CustomMatrix addition between flavours $F and $G not defined, use full() or update()")
+end
+
+
+(*)(C::CustomMatrix,s::Number) = *(s,C)
+function (*){F}(s::Number,C::CustomMatrix{F})
+    return CustomMatrix(F,s*C.data,size(C)...)
+end
+
+(-){F}(C::CustomMatrix{F}) = CustomMatrix(F,(-1)*C.data,size(C)...)
+function (-)(A::CustomMatrix,B::CustomMatrix)  
+    return +(A,-B)
+end
+
+#transpose is declared below for individual flavours
+conj{F}(C::CustomMatrix{F}) = CustomMatrix(F,conj(C.data),C.m,C.n)
+ctranspose{F,E<:Real}(C::CustomMatrix{F,E}) = transpose(C)
+ctranspose{F,E<:Complex}(C::CustomMatrix{F,E}) = transpose(conj(C))
+
+
+sum(C::CustomMatrix) = sum(sum(C,1))
 
 ###################################################################
-type repcol <: DenseFlavour end
-repcol(column::Vector,n::Int) = CustomMatrix(repcol,column,length(column),n)
-getindex(M::CustomMatrix{repcol},i::Int,j::Int) = M.data[i]
-getindex(M::CustomMatrix{repcol},k::Int) = M.data[1+(k-1)%M.m] # k = i+m*(j-1)
+include("custommatrices/repcol.jl")
+include("custommatrices/reprow.jl")
+include("custommatrices/colplusrow.jl")
+include("custommatrices/rankone.jl")
+include("custommatrices/diagflavour.jl")
+include("custommatrices/blocksparse.jl")
 
-function update!(d::Number, D::Matrix,S::CustomMatrix{repcol})
-  assert(size(D)==size(S),"argument dimensions must match")
-  col = S.data
-  m,n = size(S) 
-  for j=1:n, i=1:m 
-      D[i,j] = d*D[i,j] + col[i] #'switch' d is about as fast as a test outside the loop
-  end 
-  return D	
-end
-
-
-###################################################################
-type reprow <: DenseFlavour end
-reprow(row::Vector,m::Int) = CustomMatrix(reprow,row,m,length(row))
-getindex(M::CustomMatrix{reprow},i::Int,j::Int) = M.data[j]
-getindex(M::CustomMatrix{reprow},k::Int) = M.data[1+div(k-1,M.m)]
-
-
-function update!(d::Number, D::Matrix,S::CustomMatrix{reprow})
-  assert(size(D)==size(S),"argument dimensions must match")
-  row = S.data
-  m,n = size(S) 
-  for (j,rj) in enumerate(row), i=1:m   #enumerate here is fast
-  	D[i,j] = d*D[i,j] + rj
-  end
-  return D	
-end
-
-
-############################ reprow and repcol interaction ##########################
-
-#same flavour
-update!{F<:DenseFlavour}(d::Number,D::Matrix,
-                         L::CustomMatrix{F},R::CustomMatrix{F}) = update!(d::Number,D,L+R) 
-
-#different flavours
-update!(D::Matrix,C::CustomMatrix{repcol},R::CustomMatrix{reprow}) = update!(D,R,C)
-function update!(d::Number, D::Matrix,R::CustomMatrix{reprow},C::CustomMatrix{repcol})
-  assert(size(D)==size(R)==size(C),"argument dimensions must match")
-  row = R.data
-  col = C.data
-  m,n = size(D) 
-  for j=1:n
-    rj = row[j] 
-    for i=1:m
-      D[i,j] = d*D[i,j] + rj + col[i]
-    end
-  end
-  return D  
-end
-
-function (+)(A::CustomMatrix{F1,E1},B::CustomMatrix{F2,E2})
-  assert(size(A)==size(B))
-  T = promote_type(E1,E1)
-  if F1<:DenseFlavour || F2<:DenseFlavour
-    D = Array(T,size(A))
-    return update!(0,D,A,B)
-  else
-    D = zeros(T,size(A))
-    return update!(0,D,A,B)
-  end
-
-end 
-
-
-###################################################################
-type repdiag <: DiagFlavour end
-repdiag(element::Number,n::Int) = CustomMatrix(repdiag,element,n,n)
-
-square_sz(M::AbstractMatrix) = ((m,n)=size(M);assert(m==n,"argument not square");m)
-
-function update!(d::Number, D::Matrix,S::CustomMatrix{repdiag})
-  n = square_sz(D)
-  assert(n==S.n,"argument dimensions must match")
-  element = S.data 
-  for i=1:n D[i,i] = d*D[i,i] + element end 
-  return D  
-end
-
-###################################################################
-type fulldiag <: DiagFlavour end
-fulldiag(diag::Vector) = CustomMatrix(fulldiag,diag,length(diag),length(diag))
-
-function update!(d::Number, D::Matrix,S::CustomMatrix{fulldiag})
-  n = square_sz(D)
-  assert(n==S.n,"argument dimensions must match")
-  diag = S.data 
-  for i=1:n D[i,i] = d*D[i,i] + diag[i] end 
-  return D  
-end
-
-###################################################################
-immutable blocksparse{T<:Number} <: SparseFlavour 
-  block::Matrix{T}
-  at::(Int,Int)
-end
-blocksparse{T}(block::Matrix{T},at::(Int,Int)) = {T}blocksparse(block,at)
-eltype{T}(B::blocksparse{T}) = T
-
-(+)(A::blocksparse,B::blocksparse) = 
-  A.at==B.at && size(A)==size(B)? blocksparse(A.block+B.block,A.at) : error("block location mismatch")
-
-function blocksparse(block::Matrix,at::(Int,Int),sz::(Int,Int)) 
-  for i=1:2 assert(1 <= at[i] <= sz[i] - size(block,i) + 1,
-    "$(size(block)) block does not fit at $at in $sz matrix") 
-    end
-  return CustomMatrix(blocksparse,blocksparse(block,at),sz...)
-end
-
-function update!(d::Number, D::Matrix,S::CustomMatrix{blocksparse})
-  assert(size(D)==size(S),"argument dimensions must match")
-  i0,j0 = S.data.at
-  block = S.data.block
-  m,n = size(block) 
-  atj = j0
-  for j=1:n
-    ati = i0
-    for i=1:m
-      D[ati,atj] = d*D[ati,atj] + block[i,j]
-      ati += 1
-    end
-    atj += 1
-  end
-  return D  
-end
 
 ###################################################################
 
 
 
-# For efficiency define CustomMatrix + CustomMatrix -> CustomMatrix for some special cases
-for (a,b,c) in ( (:repcol,:repcol,:repcol), (:reprow,:reprow,:reprow), 
-               (:repdiag,:repdiag,:repdiag), (:fulldiag,:fulldiag,:fulldiag), 
-               (:repdiag,fulldiag,:fulldiag), (:fulldiag,:repdiag,:fulldiag) )
-  @eval begin
-    function (+)(A::CustomMatrix{$a},B::CustomMatrix{$b}) 
-      assert(size(A)==size(B),"size mismatch")
-      return CustomMatrix($c,A.data+B.data,size(A)...) 
-    end
-  end
-end
 
 
 
