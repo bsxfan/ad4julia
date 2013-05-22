@@ -1,6 +1,7 @@
 type repcol <: RankOne end
 
 repcol(column::Vector,n::Int) = CustomMatrix(repcol,column,length(column),n)
+repcol(col::Matrix, n::Int) = repcol(asvec(col),n)
 
 getindex(M::CustomMatrix{repcol},i::Int,j::Int) = M.data[i]
 getindex(M::CustomMatrix{repcol},k::Int) = M.data[1+(k-1)%M.m] # k = i+m*(j-1)
@@ -26,3 +27,6 @@ function sum(C::CustomMatrix{repcol},i::Int)
       return full(C)
     end
 end
+
+*(M::Matrix, C::CustomMatrix{repcol}) = repcol(M*C.data,C.n)
+*(C::CustomMatrix{repcol}, M::Matrix) = rankone(C.data,sum(M,1))

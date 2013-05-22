@@ -24,9 +24,17 @@ function sum(C::CustomMatrix{repdiag},i::Int)
 end
 
 
+*(M::Matrix, C::CustomMatrix{repdiag}) = C.data*M
+*(C::CustomMatrix{repdiag}, M::Matrix) = C.data*M
+
+*(A::CustomMatrix{repdiag}, B::CustomMatrix{repdiag}) = CustomMatrix(repdiag,A.data*B.data,size(A)...) 
+
+
+
 ###################################################################
 type fulldiag <: DiagFlavour end
 fulldiag(diag::Vector) = CustomMatrix(fulldiag,diag,length(diag),length(diag))
+fulldiag(diag::Matrix) = fulldiag(asvec(diag))
 
 function update!(d::Number, D::Matrix,S::CustomMatrix{fulldiag})
   n = square_sz(D)
@@ -56,3 +64,11 @@ function sum(C::CustomMatrix{fulldiag},i::Int)
       return full(C)
     end
 end
+
+
+*(M::Matrix, C::CustomMatrix{fulldiag}) = scale(M,C.data)
+*(C::CustomMatrix{fulldiag}, M::Matrix) = scale(C.data,M)
+
+*(A::CustomMatrix{fulldiag}, B::CustomMatrix{fulldiag}) = CustomMatrix(fulldiag,A.data.*B.data,size(A)...) 
+
+

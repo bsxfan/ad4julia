@@ -1,32 +1,39 @@
-immutable colplusrow{T<:Number} <: DenseFlavour 
+type colplusrow <: DenseFlavour end
+
+############################################################################
+
+immutable colrowdata{T<:Number} 
   col::Vector{T}
   row::Vector{T}
-  colplusrow(data::( Vector{T}, Vector{T}) ) = new(data[1],data[2])
 end
-function construct_colplusrow{R,C}(col::Vector{R}, row::Vector{C} ) 
+function colrowdata{R,C}(col::Vector{R}, row::Vector{C} ) 
     T = promote_type(R,C)
     col = convert(Vector{T},col)
     row = convert(Vector{T},row)
-    return colplusrow{T}( (col,row) )
+    return colrowdata{T}(col,row)
 end
-eltype{T}(::colplusrow{T}) = T
+eltype{T}(::colrowdata{T}) = T
 
-(+)(A::colplusrow,B::colplusrow) = construct_colplusrow(A.col+B.col,A.row+B.row)
-(+)(A::colplusrow, row::Vector) = construct_colplusrow(A.col,A.row+row) #not cummutative
-(+)(col::Vector,B::colplusrow) = construct_colplusrow(col+B.col,B.row) #not cummutative
+(*)(s::Number,data::colrowdata) = colrowdata(s*data.col,s*data.row)
+(*)(data::colrowdata,s::Number) = *(s,data)
 
-(*)(s::Number,data::colplusrow) = construct_colplusrow(s*data.col,s*data.row)
-(*)(data::colplusrow,s::Number) = *(s,data)
+transpose(data::colrowdata) = colrowdata(data.row,data.col)
+conj(data::colrowdata) = colrowdata(conj(data.col),conj(data.row))
+ctranspose(data::colrowdata) = colrowdata(conj(data.row),conj(data.col))
 
+(+)(A::colrowdata,B::colrowdata) = colrowdata(A.col+B.col,A.row+B.row)
+(+)(A::colrowdata, row::Vector) = colrowdata(A.col,A.row+row) #not cummutative
+(+)(col::Vector,B::colrowdata) = colrowdata(col+B.col,B.row) #not cummutative
 
-transpose{T}(data::colplusrow{T}) = colplusrow{T}((data.row,data.col))
-conj{T}(data::colplusrow{T}) = colplusrow{T}((conj(data.col),conj(data.row)))
-ctranspose{T}(data::colplusrow{T}) = colplusrow{T}((conj(data.row),conj(data.col)))
+############################################################################
 
 
 function colplusrow(col::Vector,row::Vector) 
-  return CustomMatrix(colplusrow,construct_colplusrow(col,row),length(col),length(row))
+  return CustomMatrix(colplusrow,colrowdata(col,row),length(col),length(row))
 end
+
+colplusrow(col::VecOrMat, row::VecOrMat) = colplusrow(asvec(col),asvec(row))
+
 
 getindex(M::CustomMatrix{colplusrow},i::Int,j::Int) = M.data.col[i] + M.data.row[j]
 getindex(M::CustomMatrix{colplusrow},k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
@@ -60,10 +67,24 @@ end
 
 function (+)(A::CustomMatrix{repcol}, B::CustomMatrix{reprow})  
     assert(size(A)==size(B),"size mismatch")
-    return CustomMatrix(colplusrow, construct_colplusrow(A.data,B.data),size(A)...)  
+    return CustomMatrix(colplusrow, colrowdata(A.data,B.data),size(A)...)  
 end
 (+)(A::CustomMatrix{reprow}, B::CustomMatrix{repcol}) = +(B,A) 
 
 
 transpose(C::CustomMatrix{colplusrow}) = CustomMatrix(colplusrow,C.data.',C.n,C.m)
+
+function sum(C::CustomMatrix{colplusrow},i::Int) 
+    col = C.data.col
+    row = C.data.row
+    m = C.m
+    n = C.n
+    if i==1
+      return reshape(m*row + sum(col), 1, n) 
+    elseif i==2
+      return reshape(n*col + sum(row), m, 1)
+    else
+      return full(C)
+    end
+end
 

@@ -1,6 +1,8 @@
 type reprow <: RankOne end
 
-reprow(row::Vector,m::Int) = CustomMatrix(reprow,row,m,length(row))
+reprow(m::Int,row::Vector) = CustomMatrix(reprow,row,m,length(row))
+reprow(m::Int,row::Matrix) = reprow(m,asvec(row))
+
 
 getindex(M::CustomMatrix{reprow},i::Int,j::Int) = M.data[j]
 getindex(M::CustomMatrix{reprow},k::Int) = M.data[1+div(k-1,M.m)]
@@ -29,3 +31,5 @@ function sum(C::CustomMatrix{reprow},i::Int)
     end
 end
 
+*(M::Matrix, C::CustomMatrix{reprow}) = rankone(sum(M,2),C.data)
+*(C::CustomMatrix{reprow}, M::Matrix) = reprow(C.m,M.'*C.data)

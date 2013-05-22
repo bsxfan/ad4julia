@@ -26,7 +26,7 @@ isinvertible{F<:Flavour}(::Type{F}) = false
 
 
 
-immutable CustomMatrix{F<:Flavour,E,D} <: AbstractMatrix{E}
+immutable CustomMatrix{F<:Flavour,E,D} #<: AbstractMatrix{E}
     data::D
     m::Int
     n::Int
@@ -34,6 +34,7 @@ end
 CustomMatrix{D}(F::DataType,data::D,m::Int,n::Int) = CustomMatrix{F,eltype(data),D}(data,m,n)
 size(M::CustomMatrix) = (M.m,M.n)
 flavour{F<:Flavour}(::CustomMatrix{F}) = F
+eltype{F<:Flavour,E<:Number}(::CustomMatrix{F,E}) = E
 #eltype() is given by AbstractMatrix
 
 
@@ -101,6 +102,14 @@ ctranspose{F,E<:Complex}(C::CustomMatrix{F,E}) = transpose(conj(C))
 sum(C::CustomMatrix) = sum(sum(C,1))
 
 ###################################################################
+asvec(v::Vector) = v
+function asvec(v::Matrix)
+  d,n = size(v)
+  if d==1 || n==1 return vec(v) end
+  error("argument must have 1 row or 1 column, but is $(size(v))")  
+end
+
+
 include("custommatrices/repcol.jl")
 include("custommatrices/reprow.jl")
 include("custommatrices/colplusrow.jl")

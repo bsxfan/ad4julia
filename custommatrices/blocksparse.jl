@@ -1,35 +1,39 @@
-immutable blocksparse{T<:Number} <: SparseFlavour 
+type blocksparse <: SparseFlavour end
+
+############################################################################
+immutable blockdata{T<:Number}  
   block::Matrix{T}
   at::(Int,Int)
 end
-blocksparse{T}(block::Matrix{T},at::(Int,Int)) = {T}blocksparse(block,at)
-eltype{T}(B::blocksparse{T}) = T
+blockdata{T}(block::Matrix{T},at::(Int,Int)) = {T}blockdata(block,at)
+eltype{T}(B::blockdata{T}) = T
 
-(+)(A::blocksparse,B::blocksparse) = 
-  A.at==B.at && size(A)==size(B)? blocksparse(A.block+B.block,A.at) : error("block mismatch")
+(+)(A::blockdata,B::blockdata) = 
+  A.at==B.at && size(A)==size(B)? blockdata(A.block+B.block,A.at) : error("block mismatch")
 
-(*)(s::Number,data::blocksparse) = blocksparse(s*data.block,data.at)
-(*)(data::blocksparse,s::Number) = *(s,data)
+(*)(s::Number,data::blockdata) = blockdata(s*data.block,data.at)
+(*)(data::blockdata,s::Number) = *(s,data)
 
-transpose(data::blocksparse) = blocksparse(data.block.',(data.at[2],data.at[1]) )
-conj(data::blocksparse) = blocksparse(conj(data.block),data.at )
-ctranspose(data::blocksparse) = blocksparse(data.block',(data.at[2],data.at[1]) )
+transpose(data::blockdata) = blockdata(data.block.',(data.at[2],data.at[1]) )
+conj(data::blockdata) = blockdata(conj(data.block),data.at )
+ctranspose(data::blockdata) = blockdata(data.block',(data.at[2],data.at[1]) )
 
-function sum(B::blocksparse,i::Int)
+function sum(B::blockdata,i::Int)
     if i==1
-      blocksparse(sum(B.block,i),(1,B.at[2]))  
+      blockdata(sum(B.block,i),(1,B.at[2]))  
     elseif i==2
-      blocksparse(sum(B.block,i),(B.at[1],1))  
+      blockdata(sum(B.block,i),(B.at[1],1))  
     else
       error("bad i")
     end
 end
+############################################################################
 
 function blocksparse(block::Matrix,at::(Int,Int),sz::(Int,Int)) 
   for i=1:2 assert(1 <= at[i] <= sz[i] - size(block,i) + 1,
     "$(size(block)) block does not fit at $at in $sz matrix") 
     end
-  return CustomMatrix(blocksparse,blocksparse(block,at),sz...)
+  return CustomMatrix(blocksparse,blockdata(block,at),sz...)
 end
 
 function update!(d::Number, D::Matrix,S::CustomMatrix{blocksparse})
@@ -60,18 +64,8 @@ ctranspose{F,E<:Complex}(C::CustomMatrix{F,E}) = CustomMatrix(blocksparse,C.data
 
 function sum(C::CustomMatrix{blocksparse},i::Int) 
     if i==1
-      println("here 1")
-      sd = sum(C.data,i)
-      println("here 2")
-      S = CustomMatrix(blocksparse,sd,1,C.n)
-      println("here 3")
-      @which full(S)
-      println(eltype(S))
-      S = update!(0,zeros(eltype(S),size(S)),S)
-      return S
-      #return S
-      #@which zeros(eltype(S),size(S))
-      #return full(S)
+      S = CustomMatrix(blocksparse,sum(C.data,i),1,C.n)
+      return full(S)
     elseif i==2
       S = CustomMatrix(blocksparse,sum(C.data,i),C.m,1)
       return full(S)

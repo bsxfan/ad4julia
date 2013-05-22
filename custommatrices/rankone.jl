@@ -1,29 +1,33 @@
-immutable rankone{T<:Number} <: RankOne
+type rankone <: RankOne end
+
+############################################################################
+
+immutable rank1data{T<:Number} 
   col::Vector{T}
   row::Vector{T}
-  rankone(data::( Vector{T}, Vector{T}) ) = new(data[1],data[2])
 end
-function construct_rankone{R,C}(col::Vector{R}, row::Vector{C} ) 
+function rank1data{R,C}(col::Vector{R}, row::Vector{C} ) 
     T = promote_type(R,C)
     col = convert(Vector{T},col)
     row = convert(Vector{T},row)
-    return rankone{T}( (col,row) )
+    return rank1data{T}(col,row)
 end
-eltype{T}(::rankone{T}) = T
+eltype{T}(::rank1data{T}) = T
 
-(*)(s::Number,data::rankone) = construct_rankone(s*data.col,s*data.row)
-(*)(data::rankone,s::Number) = *(s,data)
+(*)(s::Number,data::rank1data) = rank1data(s*data.col,s*data.row)
+(*)(data::rank1data,s::Number) = *(s,data)
 
+transpose(data::rank1data) = rank1data(data.row,data.col)
+conj(data::rank1data) = rank1data(conj(data.col), conj(data.row) )
+ctranspose(data::rank1data) = rank1data(conj(data.row), conj(data.col) )
 
-transpose(data::rankone) = construct_rankone(data.row,data.col)
-conj(data::rankone) = construct_rankone(conj(data.col), conj(data.row) )
-ctranspose(data::rankone) = construct_rankone(conj(data.row), conj(data.col) )
-
+############################################################################
 
 
 function rankone(col::Vector,row::Vector) 
-  return CustomMatrix(rankone,construct_rankone(col,row),length(col),length(row))
+  return CustomMatrix(rankone,rank1data(col,row),length(col),length(row))
 end
+rankone(col::VecOrMat, row::VecOrMat) = rankone(asvec(col),asvec(row))
 
 getindex(M::CustomMatrix{rankone},i::Int,j::Int) = M.data.col[i] * M.data.row[j]
 getindex(M::CustomMatrix{rankone},k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
@@ -48,7 +52,7 @@ end
 
 function (*)(A::CustomMatrix{rankone},B::CustomMatrix{rankone})  
   s = dot(A.data.row,B.data.col)
-  return CustomMatrix(rankone,construct_rankone(s*A.data.col,B.data.row),
+  return CustomMatrix(rankone,rank1data(s*A.data.col,B.data.row),
                       length(A.data.col),length(B.data.row))
 end
 
@@ -64,3 +68,6 @@ function sum(C::CustomMatrix{rankone},i::Int)
       return full(C)
     end
 end
+
+*(M::Matrix, C::CustomMatrix{rankone}) = rankone(M*C.data.col,C.data.row)
+*(C::CustomMatrix{rankone}, M::Matrix) = rankone(C.data.col,M.'*C.data.row)
