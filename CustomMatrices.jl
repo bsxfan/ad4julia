@@ -2,7 +2,7 @@ module CustomMatrices
 
 importall Base
 
-export repvec,
+export repvec, diagonal, repel, CustomMatrix,
        DenseFlavour,repcol,reprow,colplusrow,rankone,
        SparseFlavour,repdiag,fulldiag,blocksparse,
        flavour
@@ -38,6 +38,7 @@ CustomMatrix{D}(F::DataType,data::D,m::Int,n::Int) = CustomMatrix{F,eltype(data)
 flavour{F<:Flavour}(::CustomMatrix{F}) = F
 
 size(M::CustomMatrix) = (M.m,M.n)
+size(M::CustomMatrix,i::Int) = 1<=i<=ndims(M)?size(M)[i]:1
 length(M::CustomMatrix) = M.m*M.n
 eltype{F<:Flavour,E<:Number}(::CustomMatrix{F,E}) = E
 ndims(M::CustomMatrix) = 2
@@ -140,40 +141,40 @@ rankone(col::RepVecs,row::VecOrMat) = reprow(length(col),element(col)*asvec(row)
 rankone(col::VecOrMat,row::RepVecs) = repcol(element(row)*asvec(col),length(row))
 rankone(col::RepVecs,row::RepVecs) = repel(element(col)*element(row),length(col),length(row))
 
-mok(A::CustomMatrix,B::CustomMatrix) = (if !(A.n==B.m) error("mismatched sizes for matrix *") end)
-row2(A::CustomMatrix) = (v = row(A); reshape(v,1,length(v)) )
-row(M::Matrix) = (m,n = size(M); m==1 ? reshape(M,n): error("not a row matrix") )
-col(M::Matrix) = (m,n = size(M); n==1 ? reshape(M,m): error("not a column matrix") )
+# mok(A::CustomMatrix,B::CustomMatrix) = (if !(A.n==B.m) error("mismatched sizes for matrix *") end)
+# row2(A::CustomMatrix) = (v = row(A); reshape(v,1,length(v)) )
+# row(M::Matrix) = (m,n = size(M); m==1 ? reshape(M,n): error("not a row matrix") )
+# col(M::Matrix) = (m,n = size(M); n==1 ? reshape(M,m): error("not a column matrix") )
 
-*(c::RepColVec,r::Matrix) = (mok(c,r); rankone(col(c),row(r)) )
-*(c::RepColVec,r::RepRowVec) = (mok(c,r); rankone(col(c),row(r)) )
+# *(c::RepColVec,r::Matrix) = (mok(c,r); rankone(col(c),row(r)) )
+# *(c::RepColVec,r::RepRowVec) = (mok(c,r); rankone(col(c),row(r)) )
 
 
-(*){F<:DiagFlavour,G:<Rank1Flavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
-   ( mok(A,B); rankone(diag(A).*col(B),row(B)) )
+# (*){F<:DiagFlavour,G:<Rank1Flavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
+#    ( mok(A,B); rankone(diag(A).*col(B),row(B)) )
 
-(*){F<:DiagFlavour,G:<DiagFlavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
-   ( mok(A,B); diagonal(diag(A).*diag(B)) )
+# (*){F<:DiagFlavour,G:<DiagFlavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
+#    ( mok(A,B); diagonal(diag(A).*diag(B)) )
 
-(*){F<:DiagFlavour}(A::CustomMatrix{F}, B::Matrix) = 
-   ( mok(A,B); scale(diag(A),B) )
+# (*){F<:DiagFlavour}(A::CustomMatrix{F}, B::Matrix) = 
+#    ( mok(A,B); scale(diag(A),B) )
 
-##
-(*){F<:Rank1Flavour,G:<Rank1Flavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
-   (mok(A,B); rankone(dot(row(A),col(B))*col(A),row(B)) )
+# ##
+# (*){F<:Rank1Flavour,G:<Rank1Flavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
+#    (mok(A,B); rankone(dot(row(A),col(B))*col(A),row(B)) )
 
-(*){F<:Rank1Flavour,G:<DiagFlavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
-   (mok(A,B); rankone(col(A),row(A).*diag(B) ) )
+# (*){F<:Rank1Flavour,G:<DiagFlavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
+#    (mok(A,B); rankone(col(A),row(A).*diag(B) ) )
 
-(*){F<:Rank1Flavour}(A::CustomMatrix{F},B::Matrix)  = 
-   (mok(A,B); rankone(col(A),row2(A)*B ) )
+# (*){F<:Rank1Flavour}(A::CustomMatrix{F},B::Matrix)  = 
+#    (mok(A,B); rankone(col(A),row2(A)*B ) )
 
-##
-(*){G<:Rank1Flavour}(A::Matrix,B::CustomMatrix{G}) =
-   (mok(A,B); rankone(A*col(B), row(B)) )
+# ##
+# (*){G<:Rank1Flavour}(A::Matrix,B::CustomMatrix{G}) =
+#    (mok(A,B); rankone(A*col(B), row(B)) )
 
-(*){G<:DiagFlavour}(A::Matrix,B::CustomMatrix{G}) =
-   (mok(A,B); scale(A,diag(B)) )
+# (*){G<:DiagFlavour}(A::Matrix,B::CustomMatrix{G}) =
+#    (mok(A,B); scale(A,diag(B)) )
 
 
 end # module

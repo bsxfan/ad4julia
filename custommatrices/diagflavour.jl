@@ -6,7 +6,7 @@ diagonal(v::RepVec) = repdiag(element(v),length(v))
 type repdiag <: DiagFlavour end
 repdiag(element::Number,n::Int) = CustomMatrix(repdiag,element,n,n)
 
-typealias RepDiag{E:<Number} CustomMatrix{repdiag,E}
+typealias RepDiag{E<:Number} CustomMatrix{repdiag,E}
 
 diag(C::RepDiag) = repvec(C.data,C.n)
 element(C::RepDiag) = C.data
@@ -44,7 +44,7 @@ type fulldiag <: DiagFlavour end
 fulldiag(diag::Vector) = CustomMatrix(fulldiag,diag,length(diag),length(diag))
 fulldiag(diag::Matrix) = fulldiag(asvec(diag))
 
-typealias FullDiag{E:<Number} CustomMatrix{fulldiag,E}
+typealias FullDiag{E<:Number} CustomMatrix{fulldiag,E}
 
 diag(C::FullDiag) = C.data
 

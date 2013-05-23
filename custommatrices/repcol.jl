@@ -2,7 +2,7 @@ type repcol <: Rank1Flavour end
 
 repcol(col::VecOrMat,n::Int) = CustomMatrix(repcol,asvec(col),length(col),n)
 
-typealias RepCol{E<::Number} CustomMatrix{repcol,E}
+typealias RepCol{E<:Number} CustomMatrix{repcol,E}
 
 col(C::RepCol) = C.data
 row(C::RepCol) = repvec(one(C.data[1]),C.n)
