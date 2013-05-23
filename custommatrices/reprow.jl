@@ -1,14 +1,18 @@
-type reprow <: RankOne end
+type reprow <: Rank1Flavour end
 
-reprow(m::Int,row::Vector) = CustomMatrix(reprow,row,m,length(row))
-reprow(m::Int,row::Matrix) = reprow(m,asvec(row))
+reprow(m::Int,row::VecOrMat) = CustomMatrix(reprow,asvec(row),m,length(row))
+
+typealias RepRow{E<:Number} CustomMatrix{reprow,E}
+
+row(C::RepRow) = C.data
+col(C::RepRow) = repvec(one(C.data[1]),C.m)
 
 
-getindex(M::CustomMatrix{reprow},i::Int,j::Int) = M.data[j]
-getindex(M::CustomMatrix{reprow},k::Int) = M.data[1+div(k-1,M.m)]
+getindex(M::RepRow,i::Int,j::Int) = 1<=i<=M.m ? M.data[j] : error("index out of bounds")
+getindex(M::RepRow,k::Int) = 1<=k<=length(M) ? M.data[1+div(k-1,M.m)] : error("index out of bounds")
 
 
-function update!(d::Number, D::Matrix,S::CustomMatrix{reprow})
+function update!(d::Number, D::Matrix,S::RepRow)
   assert(size(D)==size(S),"argument dimensions must match")
   row = S.data
   m,n = size(S) 
@@ -19,9 +23,8 @@ function update!(d::Number, D::Matrix,S::CustomMatrix{reprow})
 end
 
 
-transpose(C::CustomMatrix{reprow}) = CustomMatrix(repcol, C.data, C.n, C.m)
 
-function sum(C::CustomMatrix{reprow},i::Int) 
+function sum(C::RepRow,i::Int) 
     if i==1
       return reshape(C.m*C.data,1,C.n) 
     elseif i==2
@@ -31,5 +34,5 @@ function sum(C::CustomMatrix{reprow},i::Int)
     end
 end
 
-*(M::Matrix, C::CustomMatrix{reprow}) = rankone(sum(M,2),C.data)
-*(C::CustomMatrix{reprow}, M::Matrix) = reprow(C.m,M.'*C.data)
+
+

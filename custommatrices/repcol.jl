@@ -1,24 +1,30 @@
-type repcol <: RankOne end
+type repcol <: Rank1Flavour end
 
-repcol(column::Vector,n::Int) = CustomMatrix(repcol,column,length(column),n)
-repcol(col::Matrix, n::Int) = repcol(asvec(col),n)
+repcol(col::VecOrMat,n::Int) = CustomMatrix(repcol,asvec(col),length(col),n)
 
-getindex(M::CustomMatrix{repcol},i::Int,j::Int) = M.data[i]
-getindex(M::CustomMatrix{repcol},k::Int) = M.data[1+(k-1)%M.m] # k = i+m*(j-1)
+typealias RepCol{E<::Number} CustomMatrix{repcol,E}
 
-function update!(d::Number, D::Matrix,S::CustomMatrix{repcol})
+col(C::RepCol) = C.data
+row(C::RepCol) = repvec(one(C.data[1]),C.n)
+
+
+getindex(M::RepCol,i::Int,j::Int) = 1<=j<=M.n ? M.data[i] : error("index out of bounds")
+getindex(M::RepCol,k::Int) = 1<=k<=length(M) ? M.data[1+(k-1)%M.m] : error("index out of bounds")
+
+function update!(d::Number, D::Matrix,S::RepCol)
   assert(size(D)==size(S),"argument dimensions must match")
   col = S.data
   m,n = size(S) 
   for j=1:n, i=1:m 
-      D[i,j] = d*D[i,j] + col[i] #'switch' d is about as fast as a test outside the loop
+      #'switching' with d=0 is about as fast as omitting the term d*D[i,j]
+      # surprisingly, reading D[i,j] here is almost for free in terms of time
+      D[i,j] = d*D[i,j] + col[i] 
   end 
   return D	
 end
 
-transpose(C::CustomMatrix{repcol}) = CustomMatrix(reprow, C.data, C.n, C.m)
 
-function sum(C::CustomMatrix{repcol},i::Int) 
+function sum(C::RepCol,i::Int) 
     if i==1
       return fill(sum(C.data),1,C.n) 
     elseif i==2
@@ -28,5 +34,3 @@ function sum(C::CustomMatrix{repcol},i::Int)
     end
 end
 
-*(M::Matrix, C::CustomMatrix{repcol}) = repcol(M*C.data,C.n)
-*(C::CustomMatrix{repcol}, M::Matrix) = rankone(C.data,sum(M,1))

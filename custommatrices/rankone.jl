@@ -1,4 +1,4 @@
-type rankone <: RankOne end
+type rankone <: Rank1Flavour end
 
 ############################################################################
 
@@ -29,10 +29,15 @@ function rankone(col::Vector,row::Vector)
 end
 rankone(col::VecOrMat, row::VecOrMat) = rankone(asvec(col),asvec(row))
 
-getindex(M::CustomMatrix{rankone},i::Int,j::Int) = M.data.col[i] * M.data.row[j]
-getindex(M::CustomMatrix{rankone},k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
+typealias RankOne{E<:Number} CustomMatrix{rankone,E}
 
-function update!(d::Number, D::Matrix, S::CustomMatrix{rankone})
+col(C::RankOne) = C.data.col
+row(C::RankOne) = C.data.row
+
+getindex(M::RankOne,i::Int,j::Int) = M.data.col[i] * M.data.row[j]
+getindex(M::RankOne,k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
+
+function update!(d::Number, D::Matrix, S::RankOne)
   assert(size(D)==size(S),"argument dimensions must match")
   col = S.data.col
   row = S.data.row
@@ -46,20 +51,15 @@ function update!(d::Number, D::Matrix, S::CustomMatrix{rankone})
   return D  
 end
 
-function (+)(A::CustomMatrix{rankone},B::CustomMatrix{rankone})  
+function (+)(A::RankOne,B::RankOne)  
    error("CustomMatrix addition between rankone flavours not defined, use full() or update()")
 end
 
-function (*)(A::CustomMatrix{rankone},B::CustomMatrix{rankone})  
-  s = dot(A.data.row,B.data.col)
-  return CustomMatrix(rankone,rank1data(s*A.data.col,B.data.row),
-                      length(A.data.col),length(B.data.row))
-end
+
+transpose(C::RankOne) = rankone(C.data.row,C.data.col) #CustomMatrix(rankone,C.data.',C.n,C.m)
 
 
-transpose(C::CustomMatrix{rankone}) = CustomMatrix(rankone,C.data.',C.n,C.m)
-
-function sum(C::CustomMatrix{rankone},i::Int) 
+function sum(C::RankOne,i::Int) 
     if i==1
       return reshape(sum(C.data.col)*C.data.row,1,C.n) 
     elseif i==2
@@ -69,5 +69,3 @@ function sum(C::CustomMatrix{rankone},i::Int)
     end
 end
 
-*(M::Matrix, C::CustomMatrix{rankone}) = rankone(M*C.data.col,C.data.row)
-*(C::CustomMatrix{rankone}, M::Matrix) = rankone(C.data.col,M.'*C.data.row)

@@ -2,7 +2,8 @@ module CustomMatrices
 
 importall Base
 
-export DenseFlavour,repcol,reprow,colplusrow,rankone,
+export repvec,
+       DenseFlavour,repcol,reprow,colplusrow,rankone,
        SparseFlavour,repdiag,fulldiag,blocksparse,
        flavour
 
@@ -10,9 +11,11 @@ abstract Flavour
   abstract DenseFlavour <: Flavour
     #colplusrow: reprow + repcol
     #toeplitz t.b.d.
-    abstract RankOne <:DenseFlavour
+    abstract Rank1Flavour <:DenseFlavour
+      #rankone: general case
       #reprow
       #repcol
+      #repel: el*ones
 
   abstract SparseFlavour <: Flavour
     #blocksparse
@@ -26,16 +29,18 @@ isinvertible{F<:Flavour}(::Type{F}) = false
 
 
 
-immutable CustomMatrix{F<:Flavour,E,D} #<: AbstractMatrix{E}
+immutable CustomMatrix{F<:Flavour,E,D}
     data::D
     m::Int
     n::Int
 end
 CustomMatrix{D}(F::DataType,data::D,m::Int,n::Int) = CustomMatrix{F,eltype(data),D}(data,m,n)
-size(M::CustomMatrix) = (M.m,M.n)
 flavour{F<:Flavour}(::CustomMatrix{F}) = F
+
+size(M::CustomMatrix) = (M.m,M.n)
+length(M::CustomMatrix) = M.m*M.n
 eltype{F<:Flavour,E<:Number}(::CustomMatrix{F,E}) = E
-#eltype() is given by AbstractMatrix
+ndims(M::CustomMatrix) = 2
 
 
 
@@ -102,6 +107,8 @@ ctranspose{F,E<:Complex}(C::CustomMatrix{F,E}) = transpose(conj(C))
 sum(C::CustomMatrix) = sum(sum(C,1))
 
 ###################################################################
+include("custommatrices/repvecs.jl")
+
 asvec(v::Vector) = v
 function asvec(v::Matrix)
   d,n = size(v)
@@ -109,21 +116,64 @@ function asvec(v::Matrix)
   error("argument must have 1 row or 1 column, but is $(size(v))")  
 end
 
-
+include("custommatrices/rankone.jl")
 include("custommatrices/repcol.jl")
 include("custommatrices/reprow.jl")
+include("custommatrices/repel.jl")
+
 include("custommatrices/colplusrow.jl")
-include("custommatrices/rankone.jl")
+
 include("custommatrices/diagflavour.jl")
+
 include("custommatrices/blocksparse.jl")
 
 
 ###################################################################
 
+transpose(C::RepCol) = reprow(C.n,C.data) 
+transpose(C::RepRow) = repcol(C.data,C.m) 
+
+###################################################################
 
 
+rankone(col::RepVecs,row::VecOrMat) = reprow(length(col),element(col)*asvec(row))
+rankone(col::VecOrMat,row::RepVecs) = repcol(element(row)*asvec(col),length(row))
+rankone(col::RepVecs,row::RepVecs) = repel(element(col)*element(row),length(col),length(row))
+
+mok(A::CustomMatrix,B::CustomMatrix) = (if !(A.n==B.m) error("mismatched sizes for matrix *") end)
+row2(A::CustomMatrix) = (v = row(A); reshape(v,1,length(v)) )
+row(M::Matrix) = (m,n = size(M); m==1 ? reshape(M,n): error("not a row matrix") )
+col(M::Matrix) = (m,n = size(M); n==1 ? reshape(M,m): error("not a column matrix") )
+
+*(c::RepColVec,r::Matrix) = (mok(c,r); rankone(col(c),row(r)) )
+*(c::RepColVec,r::RepRowVec) = (mok(c,r); rankone(col(c),row(r)) )
 
 
+(*){F<:DiagFlavour,G:<Rank1Flavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
+   ( mok(A,B); rankone(diag(A).*col(B),row(B)) )
+
+(*){F<:DiagFlavour,G:<DiagFlavour}(A::CustomMatrix{F}, B::CustomMatrix{G}) = 
+   ( mok(A,B); diagonal(diag(A).*diag(B)) )
+
+(*){F<:DiagFlavour}(A::CustomMatrix{F}, B::Matrix) = 
+   ( mok(A,B); scale(diag(A),B) )
+
+##
+(*){F<:Rank1Flavour,G:<Rank1Flavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
+   (mok(A,B); rankone(dot(row(A),col(B))*col(A),row(B)) )
+
+(*){F<:Rank1Flavour,G:<DiagFlavour}(A::CustomMatrix{F},B::CustomMatrix{G})  = 
+   (mok(A,B); rankone(col(A),row(A).*diag(B) ) )
+
+(*){F<:Rank1Flavour}(A::CustomMatrix{F},B::Matrix)  = 
+   (mok(A,B); rankone(col(A),row2(A)*B ) )
+
+##
+(*){G<:Rank1Flavour}(A::Matrix,B::CustomMatrix{G}) =
+   (mok(A,B); rankone(A*col(B), row(B)) )
+
+(*){G<:DiagFlavour}(A::Matrix,B::CustomMatrix{G}) =
+   (mok(A,B); scale(A,diag(B)) )
 
 
 end # module

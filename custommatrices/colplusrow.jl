@@ -31,14 +31,18 @@ ctranspose(data::colrowdata) = colrowdata(conj(data.row),conj(data.col))
 function colplusrow(col::Vector,row::Vector) 
   return CustomMatrix(colplusrow,colrowdata(col,row),length(col),length(row))
 end
-
 colplusrow(col::VecOrMat, row::VecOrMat) = colplusrow(asvec(col),asvec(row))
 
+typealias ColPlusRow{E<:Number} CustomMatrix{colplusrow,E}
 
-getindex(M::CustomMatrix{colplusrow},i::Int,j::Int) = M.data.col[i] + M.data.row[j]
-getindex(M::CustomMatrix{colplusrow},k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
+col(C::ColPlusRow) = C.data.col
+row(C::ColPlusRow) = C.data.row
 
-function update!(d::Number, D::Matrix, S::CustomMatrix{colplusrow})
+
+getindex(M::ColPlusRow,i::Int,j::Int) = M.data.col[i] + M.data.row[j]
+getindex(M::ColPlusRow,k::Int) = getindex(M,1+(i-1)%M.m,1+div(i-1,M.m))
+
+function update!(d::Number, D::Matrix, S::ColPlusRow)
   assert(size(D)==size(S),"argument dimensions must match")
   col = S.data.col
   row = S.data.row
@@ -61,8 +65,8 @@ for (L,R) in { (:colplusrow,:reprow) ,(:repcol,:colplusrow) }
     end
   end
 end
-(+)(A::CustomMatrix{reprow}, B::CustomMatrix{colplusrow}) = +(B,A) 
-(+)(A::CustomMatrix{colplusrow}, B::CustomMatrix{repcol}) = +(B,A) 
+(+)(A::CustomMatrix{reprow}, B::ColPlusRow) = +(B,A) 
+(+)(A::ColPlusRow, B::CustomMatrix{repcol}) = +(B,A) 
 
 
 function (+)(A::CustomMatrix{repcol}, B::CustomMatrix{reprow})  
@@ -72,9 +76,10 @@ end
 (+)(A::CustomMatrix{reprow}, B::CustomMatrix{repcol}) = +(B,A) 
 
 
-transpose(C::CustomMatrix{colplusrow}) = CustomMatrix(colplusrow,C.data.',C.n,C.m)
+#CustomMatrix(colplusrow,C.data.',C.n,C.m)
+transpose(C::ColPlusRow) = colplusrow(C.data.row,C.data.col)
 
-function sum(C::CustomMatrix{colplusrow},i::Int) 
+function sum(C::ColPlusRow,i::Int) 
     col = C.data.col
     row = C.data.row
     m = C.m

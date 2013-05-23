@@ -1,9 +1,20 @@
+diagonal(element::Number,n::Int) = repdiag(element,n)
+diagonal(v::VecOrMat) = fulldiag(asvec(v))
+diagonal(v::RepVec) = repdiag(element(v),length(v))
+
+
 type repdiag <: DiagFlavour end
 repdiag(element::Number,n::Int) = CustomMatrix(repdiag,element,n,n)
 
+typealias RepDiag{E:<Number} CustomMatrix{repdiag,E}
+
+diag(C::RepDiag) = repvec(C.data,C.n)
+element(C::RepDiag) = C.data
+
+
 square_sz(M::AbstractMatrix) = ((m,n)=size(M);assert(m==n,"argument not square");m)
 
-function update!(d::Number, D::Matrix,S::CustomMatrix{repdiag})
+function update!(d::Number, D::Matrix,S::RepDiag)
   n = square_sz(D)
   assert(n==S.n,"argument dimensions must match")
   element = S.data 
@@ -11,9 +22,9 @@ function update!(d::Number, D::Matrix,S::CustomMatrix{repdiag})
   return D  
 end
 
-transpose(C::CustomMatrix{repdiag}) = C
+transpose(C::RepDiag) = C
 
-function sum(C::CustomMatrix{repdiag},i::Int) 
+function sum(C::RepDiag,i::Int) 
     if i==1
       return fill(C.data,C.m,1)
     elseif i==2
@@ -24,10 +35,7 @@ function sum(C::CustomMatrix{repdiag},i::Int)
 end
 
 
-*(M::Matrix, C::CustomMatrix{repdiag}) = C.data*M
-*(C::CustomMatrix{repdiag}, M::Matrix) = C.data*M
 
-*(A::CustomMatrix{repdiag}, B::CustomMatrix{repdiag}) = CustomMatrix(repdiag,A.data*B.data,size(A)...) 
 
 
 
@@ -36,7 +44,11 @@ type fulldiag <: DiagFlavour end
 fulldiag(diag::Vector) = CustomMatrix(fulldiag,diag,length(diag),length(diag))
 fulldiag(diag::Matrix) = fulldiag(asvec(diag))
 
-function update!(d::Number, D::Matrix,S::CustomMatrix{fulldiag})
+typealias FullDiag{E:<Number} CustomMatrix{fulldiag,E}
+
+diag(C::FullDiag) = C.data
+
+function update!(d::Number, D::Matrix,S::FullDiag)
   n = square_sz(D)
   assert(n==S.n,"argument dimensions must match")
   diag = S.data 
@@ -53,9 +65,9 @@ for (L,R) in { (:repdiag,fulldiag), (:fulldiag,:repdiag) }
   end
 end
 
-transpose(C::CustomMatrix{fulldiag}) = C
+transpose(C::FullDiag) = C
 
-function sum(C::CustomMatrix{fulldiag},i::Int) 
+function sum(C::FullDiag,i::Int) 
     if i==1
       return reshape(copy(C.data),1,C.n)
     elseif i==2
@@ -66,9 +78,6 @@ function sum(C::CustomMatrix{fulldiag},i::Int)
 end
 
 
-*(M::Matrix, C::CustomMatrix{fulldiag}) = scale(M,C.data)
-*(C::CustomMatrix{fulldiag}, M::Matrix) = scale(C.data,M)
 
-*(A::CustomMatrix{fulldiag}, B::CustomMatrix{fulldiag}) = CustomMatrix(fulldiag,A.data.*B.data,size(A)...) 
 
 
