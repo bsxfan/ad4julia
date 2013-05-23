@@ -26,9 +26,9 @@ transpose(C::RepDiag) = C
 
 function sum(C::RepDiag,i::Int) 
     if i==1
-      return fill(C.data,C.m,1)
-    elseif i==2
       return fill(C.data,1,C.n)
+    elseif i==2
+      return fill(C.data,C.m,1)
     else
       return full(C)
     end

@@ -38,6 +38,8 @@ dot(a::RepVec,b::RepVec) = a.data*b.data
 (.*)(v::Vector,r::RepVec) = r.data*v
 (.*)(r::RepVec,v::Vector) = r.data*v
 (.*)(a::RepVec,b::RepVec) = a.n==b.n ? repvec(a.data*b.data,a.n) : error("mismatched sizes")
+# note the new .* can make rank one matrices, like: row.*col == col.*row
+
 
 +(v::Vector,r::RepVec) = r.data+v
 +(r::RepVec,v::Vector) = r.data+v
@@ -69,6 +71,8 @@ copy(r::RepRowVec) = reprowvec(r.data,r.n)
 *(r::RepRowVec,s::Number) = reprowvec(s*r.data,r.n)
 *(s::Number,r::RepRowVec) = reprowvec(s*r.data,r.n)
 
+(.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
+
 ##############################################################
 
 immutable RepColVec{E<:Number} <: RepVecs{E}
@@ -84,36 +88,41 @@ copy(r::RepColVec) = repcolvec(r.data,r.n)
 *(r::RepColVec,s::Number) = repcolvec(s*r.data,r.n)
 *(s::Number,r::RepColVec) = repcolvec(s*r.data,r.n)
 
+(.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
+
+
 ##############################################################
 
+typealias CMatrix Union(Matrix,CustomMatrix)
 
-function *(M::Matrix,r::RepVec) 
+
+function *(M::CMatrix, r::RepVec) 
   if size(M,2)!= r.n error("mismatched sizes") end
   return reshape(sum(M,2)*r.data,size(M,1)) 
 end
 
-function *(M::Matrix,r::RepColVec)  
+function *(M::CMatrix, r::RepColVec)  
   if size(M,2)!=r.n error("mismatched sizes") end
-  return r.data*sum(M,2)
+  return sum(M,2)*r.data
 end
 
-function *(r::RepRowVec,M::VecOrMat) 
-  if size(M,1)!= r.n error("mismatched sizes") end
-  return sum(M,1)*r.data
+function *(r::RepRowVec, M::VecOrMat) 
+  if r.n != size(M,1) error("mismatched sizes") end
+  return r.data*sum(M,1)
 end	
 
 
-function *(r::RepRowVec,c::RepColVec) 
+function *(r::RepRowVec, c::RepColVec) 
   if r.n!=c.n error("mismatched sizes") end
-  return fill(r.data*c.data,1,1)
+  return fill(r.data*c.data*r.n,1,1)
 end	
 
-function *(r::RepRowVec,c::RepVec) 
+function *(r::RepRowVec, c::RepVec) 
   if r.n!=c.n error("mismatched sizes") end
-  return fill(r.data*c.data,1)
+  return fill(r.data*c.data*c.n,1)
 end	
 
-*(r::RepVec,M::Matrix) = repcolvec(r.data,r.n) * M
+*(r::RepVec,M::CMatrix) = repcolvec(r.data,r.n) * M
 *(r::RepVec,M::RepRowVec) = repcolvec(r.data,r.n) * M
 
 
