@@ -56,42 +56,42 @@ scale(r::RepVec,M::Matrix) = r.data*M
 scale(M::Matrix,r::RepVec) = r.data*M
 
 
-##############################################################
+# ##############################################################
 
-immutable RepRowVec{E<:Number} <: RepVecs{E}
-  data::E
-  n::Int
-end
-reprowvec{E}(e::E,n::Int) = RepRowVec{E}(e,n)
-size(r::RepRowVec) = (1,r.n)
-sum(r::RepRowVec,i::Int) = i==2?[sum(r)]:r
-row(r::RepRowVec) = repvec(r.data,r.n)
-copy(r::RepRowVec) = reprowvec(r.data,r.n)
+# immutable RepRowVec{E<:Number} <: RepVecs{E}
+#   data::E
+#   n::Int
+# end
+# reprowvec{E}(e::E,n::Int) = RepRowVec{E}(e,n)
+# size(r::RepRowVec) = (1,r.n)
+# sum(r::RepRowVec,i::Int) = i==2?[sum(r)]:r
+# row(r::RepRowVec) = repvec(r.data,r.n)
+# copy(r::RepRowVec) = reprowvec(r.data,r.n)
 
-*(r::RepRowVec,s::Number) = reprowvec(s*r.data,r.n)
-*(s::Number,r::RepRowVec) = reprowvec(s*r.data,r.n)
+# *(r::RepRowVec,s::Number) = reprowvec(s*r.data,r.n)
+# *(s::Number,r::RepRowVec) = reprowvec(s*r.data,r.n)
 
-(.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
+# (.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
 
-##############################################################
+# ##############################################################
 
-immutable RepColVec{E<:Number} <: RepVecs{E}
-  data::E
-  n::Int
-end
-repcolvec{E}(e::E,n::Int) = RepColVec{E}(e,n)
-size(r::RepColVec) = (r.n,1)
-sum(r::RepColVec,i::Int) = i==1?[sum(r)]:r
-col(r::RepColVec) = repvec(r.data,r.n)
-copy(r::RepColVec) = repcolvec(r.data,r.n)
+# immutable RepColVec{E<:Number} <: RepVecs{E}
+#   data::E
+#   n::Int
+# end
+# repcolvec{E}(e::E,n::Int) = RepColVec{E}(e,n)
+# size(r::RepColVec) = (r.n,1)
+# sum(r::RepColVec,i::Int) = i==1?[sum(r)]:r
+# col(r::RepColVec) = repvec(r.data,r.n)
+# copy(r::RepColVec) = repcolvec(r.data,r.n)
 
-*(r::RepColVec,s::Number) = repcolvec(s*r.data,r.n)
-*(s::Number,r::RepColVec) = repcolvec(s*r.data,r.n)
+# *(r::RepColVec,s::Number) = repcolvec(s*r.data,r.n)
+# *(s::Number,r::RepColVec) = repcolvec(s*r.data,r.n)
 
-(.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
+# (.*)(a::RepRowVec,b::RepRowVec) = a.n==b.n ? reprowvec(a.data*b.data,a.n) : error("mismatched sizes")
 
 
-##############################################################
+# ##############################################################
 
 typealias CMatrix Union(Matrix,CustomMatrix)
 
@@ -101,33 +101,37 @@ function *(M::CMatrix, r::RepVec)
   return reshape(sum(M,2)*r.data,size(M,1)) 
 end
 
-function *(M::CMatrix, r::RepColVec)  
-  if size(M,2)!=r.n error("mismatched sizes") end
-  return sum(M,2)*r.data
-end
+# function *(M::CMatrix, r::RepColVec)  
+#   if size(M,2)!=r.n error("mismatched sizes") end
+#   return sum(M,2)*r.data
+# end
 
-function *(r::RepRowVec, M::VecOrMat) 
-  if r.n != size(M,1) error("mismatched sizes") end
-  return r.data*sum(M,1)
-end	
-
-
-function *(r::RepRowVec, c::RepColVec) 
-  if r.n!=c.n error("mismatched sizes") end
-  return fill(r.data*c.data*r.n,1,1)
-end	
-
-function *(r::RepRowVec, c::RepVec) 
-  if r.n!=c.n error("mismatched sizes") end
-  return fill(r.data*c.data*c.n,1)
-end	
-
-*(r::RepVec,M::CMatrix) = repcolvec(r.data,r.n) * M
-*(r::RepVec,M::RepRowVec) = repcolvec(r.data,r.n) * M
+# function *(r::RepRowVec, M::VecOrMat) 
+#   if r.n != size(M,1) error("mismatched sizes") end
+#   return r.data*sum(M,1)
+# end	
 
 
+# function *(r::RepRowVec, c::RepColVec) 
+#   if r.n!=c.n error("mismatched sizes") end
+#   return fill(r.data*c.data*r.n,1,1)
+# end	
 
-transpose(r::RepVec) = reprowvec(r.data,r.n)
-transpose(r::RepRowVec) = repcolvec(r.data,r.n)
-transpose(r::RepColVec) = reprowvec(r.data,r.n)
+# function *(r::RepRowVec, c::RepVec) 
+#   if r.n!=c.n error("mismatched sizes") end
+#   return fill(r.data*c.data*c.n,1)
+# end	
+
+# *(r::RepVec,M::CMatrix) = repcolvec(r.data,r.n) * M
+# *(r::RepVec,M::RepRowVec) = repcolvec(r.data,r.n) * M
+
+*(r::RepVec,M::CMatrix) = repel(r.data,r.n,1) * M
+
+transpose(r::RepVec) = repel(r.data,1,r.n)
+
+
+
+# transpose(r::RepVec) = reprowvec(r.data,r.n)
+# transpose(r::RepRowVec) = repcolvec(r.data,r.n)
+# transpose(r::RepColVec) = reprowvec(r.data,r.n)
 

@@ -11,6 +11,7 @@ element(C::RepEl) = C.data
 getindex(M::RepEl,i::Int,j::Int) = 1<+i<+M.m&&1<j<=M.n ? M.data : error("index out of bounds")
 getindex(M::RepEl,k::Int) = 1<=k<=length(M) ? M.data : error("index out of bounds")
 
+transpose(C::RepRow) = repel(C.data,C.n,C.m) 
 
 function update!(d::Number, D::Matrix,S::RepEl)
   assert(size(D)==size(S),"argument dimensions must match")
