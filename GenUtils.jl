@@ -5,7 +5,8 @@ importall Base
 export eq, 
        diagonal, Centering, 
        check, prevent,
-       argumentsmatch
+       argumentsmatch,
+       @elapsedloop
 
 
 ######### Patches #####################################
@@ -24,6 +25,7 @@ abstract TagType
 ########################################################
 
 eq(m::Int,n::Int) = m==n?n:error("dimension mismatch")
+eq{N}(sz1::NTuple{N,Int},sz2::NTuple{N,Int}) = sz1==sz2?sz1:error("dimension mismatch")
 
 ############### precondition checking #######################
 check(ok::Bool, msg="assertion failed") = ok?true:error(msg)
@@ -48,6 +50,9 @@ end
 #lest(notok::Function) = x-> notok(x)?error("assertion failed"):x #latin "ne"
 #sothat(ok::Function) = x-> ok(x)?x:error("assertion failed") #latin "ut"
 
+########################################################
+getindex(A::Array, f::Function) = f(A)
+setindex!(A::Array, X, f::Function) = f(A,X)
 
 
 ########################################################
@@ -98,5 +103,20 @@ randw(d,n) = (R = randn(d,n); R*R')
 randw(d) = randw(d,d+1)
 
 ########################################################
+
+macro elapsedloop(n,ex)
+    quote
+        local s = 0.0
+        for i=1:$(esc(n))
+          local t0 = time_ns()
+          local val = $(esc(ex))
+          s += (time_ns()-t0)/1e9
+      end    
+      s
+    end
+end
+
+########################################################
+
 
 end
