@@ -2,11 +2,12 @@ module GenUtils
 
 importall Base
 
-export eq, 
+export eq,eqsize,eqlength, 
        diagonal, Centering, 
        check, prevent,
        argumentsmatch,
-       @elapsedloop
+       @elapsedloop,
+       promote_eltype
 
 
 ######### Patches #####################################
@@ -24,8 +25,17 @@ abstract TagType
 
 ########################################################
 
-eq(m::Int,n::Int) = m==n?n:error("dimension mismatch")
-eq{N}(sz1::NTuple{N,Int},sz2::NTuple{N,Int}) = sz1==sz2?sz1:error("dimension mismatch")
+#eq(m::Int,n::Int) = m==n?n:error("dimension mismatch")
+#eq{N}(sz1::NTuple{N,Int},sz2::NTuple{N,Int}) = sz1==sz2?sz1:error("dimension mismatch")
+eq{T}(msg::String,a1::T,args::T...) = all(map(x->x==a1,args))?a1:error(msg)
+eq{N}(sz1::NTuple{N,Int},sizes::NTuple{N,Int}...) = eq("size mismatch",sz1,sizes...)
+eq(d1::Int,dims::Int...) = eq("dimension mismatch",d1,dims...)
+eqsize(args...) = eq(map(size,args)...)
+eqlength(args...) = eq("length mismatch",map(length,args)...)
+
+########################################################
+
+promote_eltype(args::AbstractArray...) = promote_type(map(eltype,args)...)
 
 ############### precondition checking #######################
 check(ok::Bool, msg="assertion failed") = ok?true:error(msg)
