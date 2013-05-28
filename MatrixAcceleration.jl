@@ -1,6 +1,7 @@
 module MatrixAcceleration
 
 importall Base
+import Base.LinAlg: BLAS, BlasFloat
 
 using GenUtils
 
@@ -56,10 +57,10 @@ end
 
 # install: A[:+] = B --- does A += B, but faster. 
 #   note B is returned, not A+B. 
-function setindex!{T<:LinAlg.BlasFloat}(Y::Matrix{T},X::Array{T},s::Symbol)
+function setindex!{T<:BlasFloat}(Y::Matrix{T},X::Array{T},s::Symbol)
     if is(s,:+)
         a = one(T)
-        return LinAlg.BLAS.axpy!(a,X,Y)
+        return BLAS.axpy!(a,X,Y)
     else
         error("setindex! not implemented for symbol $s")
     end
@@ -90,8 +91,8 @@ sum1{T}(A::Matrix{T})=(
     reshape(s,1,n) 
 )
 
-sum1blas{T<:LinAlg.BlasFloat}(A::Matrix{T}) = reshape(A.'*ones(T,size(A,1)),1,size(A,2))
-sum2blas{T<:LinAlg.BlasFloat}(A::Matrix{T}) = A*ones(T,size(A,2))
+sum1blas{T<:BlasFloat}(A::Matrix{T}) = reshape(A.'*ones(T,size(A,1)),1,size(A,2))
+sum2blas{T<:BlasFloat}(A::Matrix{T}) = A*ones(T,size(A,2))
 
 
 # currently about 3x faster than sum(A,2) 
@@ -102,7 +103,7 @@ sum2{T}(A::Matrix{T})=(
     s
 )
 
-sum{T<:LinAlg.BlasFloat}(A::Matrix{T},i::Int) = (
+sum{T<:BlasFloat}(A::Matrix{T},i::Int) = (
     assert(1<=i<=2);
     if length(A) < 10_000 # this heuristic must be refined
        return i=1?sum1(A):sum2(A)
