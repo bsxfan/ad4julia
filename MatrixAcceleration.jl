@@ -9,6 +9,15 @@ export loopaddarrays, loopaddarrays!,
        sum1,sum2,sum1blas,sum2blas
 
 
+####################### Bye to goddamn denormals ##########################
+
+if ccall(:jl_zero_denormals, Bool, (Bool,), true)
+    assert(exp(-710)==0,"denormals are unfortunately still with us")
+else
+    error("ccall jl_zero_denormals failed")
+end
+
+
 ############ Accelerate A+B+C, A+B+C+D, etc.  ##########################
 
 # These loops are much faster as separate little functions.
