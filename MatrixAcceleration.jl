@@ -15,7 +15,7 @@ if !ccall(:jl_zero_denormals, Bool, (Bool,), true)
     error("ccall jl_zero_denormals failed")
 end
 assert(exp(-710)==0,"denormals are unfortunately still with us")
-println("warning: denormals disabled")
+println("hooray: denormals disabled!")
 
 
 

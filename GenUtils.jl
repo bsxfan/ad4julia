@@ -13,9 +13,10 @@ export eq,eqsize,eqlength,
 
 
 ######### Patches #####################################
-# https://github.com/JuliaLang/julia/issues/3202
-convert(::Type{Rational},x::Integer) = convert(Rational{typeof(x)},x)
+# https://github.com/JuliaLang/julia/issues/3202, closed, resolved
+# convert(::Type{Rational},x::Integer) = convert(Rational{typeof(x)},x)
 
+^(z::Complex, n::Integer) = n>=0?Base.power_by_squaring(z,n):Base.power_by_squaring(inv(z),-n)
 
 #######################################################
 abstract TagType 
