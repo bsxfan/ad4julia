@@ -1,23 +1,21 @@
 module MatrixAcceleration
 
 importall Base
-import Base.LinAlg: BLAS, BlasFloat, openblas_set_num_threads
+import Base.LinAlg: BLAS, BlasFloat
 
 using GenUtils
 
 export loopaddarrays, loopaddarrays!,
-       sum1,sum2,sum1blas,sum2blas,
-       openblas_set_num_threads
+       sum1,sum2,sum1blas,sum2blas
 
 
 ####################### Bye to goddamn denormals ##########################
 
-if ccall(:jl_zero_denormals, Bool, (Bool,), true)
-    assert(exp(-710)==0,"denormals are unfortunately still with us")
-else
+if !ccall(:jl_zero_denormals, Bool, (Bool,), true)
     error("ccall jl_zero_denormals failed")
 end
-
+assert(exp(-710)==0,"denormals are unfortunately still with us")
+println("warning: denormals disabled")
 
 
 
