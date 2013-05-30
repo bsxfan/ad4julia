@@ -10,12 +10,17 @@ export repvec, diagonal, repel, CustomMatrix,
 abstract Flavour
   abstract DenseFlavour <: Flavour
     #colplusrow: reprow + repcol
-    #toeplitz t.b.d.
+    #t.b.d. toeplitz, centering, permutation,
     abstract Rank1Flavour <:DenseFlavour
       #rankone: general case
       #reprow
       #repcol
       #repel: el*ones
+    abstract SymmetricFlavour <: DenseFlavour
+    # tbd: packed, RFP, Hermitian?  
+
+  abstract TriangularFlavour <: Flavour 
+  # tbd: packed, RFP  
 
   abstract SparseFlavour <: Flavour
     #blocksparse
