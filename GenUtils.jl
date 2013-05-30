@@ -7,12 +7,15 @@ export eq,eqsize,eqlength,
        check, prevent,
        argumentsmatch,
        @elapsedloop,
-       promote_eltype
+       promote_eltype,
+       randw,
+       berror
 
 
 ######### Patches #####################################
 # https://github.com/JuliaLang/julia/issues/3202
 convert(::Type{Rational},x::Integer) = convert(Rational{typeof(x)},x)
+
 
 #######################################################
 abstract TagType 

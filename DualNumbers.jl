@@ -193,6 +193,13 @@ transpose(x::DualNum) = dualnum(x.st.',x.di.')
 +(x::DualNum,y::Numeric) = dualnum(x.st+y, copy(x.di))
 +(x::Numeric,y::DualNum) = dualnum(x+y.st, copy(y.di))
 
+.+(x::DualNum,y::DualNum) = dualnum(x.st.+y.st, x.di.+y.di)
+.+(x::DualNum,y::Numeric) = dualnum(x.st.+y, x.di.+zeros(size(y)))
+.+(x::Numeric,y::DualNum) = dualnum(x.+y.st, zeros(size(x)).+y.di)
+
+
+
+
 -(x::DualNum,y::DualNum) = dualnum(x.st-y.st, x.di-y.di)
 -(x::DualNum,y::Numeric) = dualnum(x.st-y, copy(x.di))
 -(x::Numeric,y::DualNum) = dualnum(x-y.st, -y.di)
@@ -264,9 +271,9 @@ function (^){T<:FloatMatrix}(A::DualNum{T},b::Integer)
 end
 
 
-######## Libraries of differentiablke functions #######################
+######## Libraries of differentiable functions #######################
 include("MatrixFunctionLib.jl")
-include("FactorizationLib.jl")
+#include("FactorizationLib.jl")
 include("ScalarFunctionLib.jl")
 
 

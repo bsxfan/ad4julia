@@ -1,12 +1,13 @@
 module MatrixAcceleration
 
 importall Base
-import Base.LinAlg: BLAS, BlasFloat
+import Base.LinAlg: BLAS, BlasFloat, openblas_set_num_threads
 
 using GenUtils
 
 export loopaddarrays, loopaddarrays!,
-       sum1,sum2,sum1blas,sum2blas
+       sum1,sum2,sum1blas,sum2blas,
+       openblas_set_num_threads
 
 
 ####################### Bye to goddamn denormals ##########################
@@ -16,6 +17,8 @@ if ccall(:jl_zero_denormals, Bool, (Bool,), true)
 else
     error("ccall jl_zero_denormals failed")
 end
+
+
 
 
 ############ Accelerate A+B+C, A+B+C+D, etc.  ##########################
@@ -74,6 +77,20 @@ function setindex!{T<:BlasFloat}(Y::Matrix{T},X::Array{T},s::Symbol)
         error("setindex! not implemented for symbol $s")
     end
 end
+
+
+# install: A[:-] = B --- does A -= B, but faster. 
+#   note B is returned, not A-B. 
+function setindex!{T<:BlasFloat}(Y::Matrix{T},X::Array{T},s::Symbol)
+    if is(s,:+)
+        a = -one(T)
+        return BLAS.axpy!(a,X,Y)
+    else
+        error("setindex! not implemented for symbol $s")
+    end
+end
+
+
 
 # install: A[:+] = B,C --- up to 5 array on rhs --- adds everything (including A) in-place in A. 
 #   note RHs tuple is returned, not sum. 
