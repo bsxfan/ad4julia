@@ -32,7 +32,7 @@ convert{T<:CArray}(::Type{T},A::T) = A #trivial case
 summary(X::CArray) = string(Base.dims2string(size(X))," ",typeof(X)) 
 show(io::IO,X::CArray) = ( println(io,summary(X),"->"); show(full(X)) )
 full{E}(X::CArray{E}) = update!(0,
-                                isdense(X)?zeros(E,size(X)):Array(E,size(X)),
+                                isdense(X)?Array(E,size(X)):zeros(E,size(X)),
                                 X)  
 
 # Can create new D to allow conversion --- use the returned D
@@ -60,8 +60,8 @@ size{L}(::CVec{L}) = (L,)
 size{L}(::CVec{L},i::Int) = i==1?L:1
 ndims(::CVec) = 1
 
-typealias CVecs{E,L} CVec{L,E}
-typealias AnyVec{E} Union(CVecs{E},Vector{E})
+typealias _CVec{E,L} CVec{L,E}
+typealias AnyVec{E} Union(_CVec{E},Vector{E})
 
 ###
 
@@ -73,7 +73,7 @@ wrap{E}(v::Vector{E}) = WVec{length(v),E}(v)
 wrap(v::Matrix) = size(v,1)==1||size(v,2)==1?wrap(vec(v)):error("argument must have single row or column")
 wrap(v::WVec) = v
 full(v::WVec) = v.v
-isdense(v::WVec) = true
+isdense(::WVec) = true
 converte{L,E,F}(::Type{E},v::WVec{L,F}) = WVec{L,E}(convert(Vector{E},v.v))
 *(x::Number,v::WVec) = wrap(x*v.v)
 *(v::WVec,x::Number) = wrap(x*v.v)
@@ -81,8 +81,10 @@ converte{L,E,F}(::Type{E},v::WVec{L,F}) = WVec{L,E}(convert(Vector{E},v.v))
 nzindexrange{L}(v::WVec{L}) = 1:L
 getindex(v::WVec,ii...) = getindex(v.v,ii...) # valid only for nzindexrange
 
-typealias WVecs{E,L} WVec{L,E}
-typealias DenseVec{E} Union(WVecs{E},Vector{E}) 
+sum(v::WVec) = sum(v.v)
+
+# typealias _WVec{E,L} WVec{L,E}
+# typealias DenseVec{E} Union(_WVec{E},Vector{E}) 
 
 ###
 
@@ -92,13 +94,14 @@ end
 onevec(pos::Int, len::Int, scale = 1.0) = OneVec{len,typeof(scale),pos}(scale)
 full{L,E,P}(v::OneVec{L,E,P}) = (f = zeros(E,L); f[P] = v.s; f)
 converte{L,E,F,P}(::Type{E},v::OneVec{L,F,P}) = OneVec{L,E,P}(convert(E,v.s))
-isdense(v::OneVec) = false
+isdense(::OneVec) = false
 *{L}(x::Number,v::OneVec{L}) = onevec(L,x*v.s)
 *{L}(v::OneVec{L},x::Number) = onevec(L,x*v.s)
 
 nzindexrange{L,E,P}(v::OneVec{L,E,P}) = P
 getindex(v::OneVec,ii...) = v.s # valid only for nzindexrange
 
+sum(v::WVec) = v.s
 
 ###
 
@@ -108,13 +111,15 @@ end
 repvec(len::Int, scale = 1.0) = RepVec{len,typeof(scale)}(scale)
 
 full{L}(v::RepVec{L}) = fill(v.s,L)
-isdense(v::RepVec) = true
+isdense(::RepVec) = true
 converte{L,E,F}(::Type{E},v::RepVec{L,F}) = RepVec{L,E}(convert(E,v.s))
 *{L}(x::Number,v::RepVec{L}) = repvec(L,x*v.s)
 *{L}(v::RepVec{L},x::Number) = repvec(L,x*v.s)
 
 nzindexrange{L}(v::RepVec{L}) = 1:L
 getindex(v::RepVec,ii...) = v.s # valid only for nzindexrange
+
+sum{L}(v::WVec{L}) = v.s*L
 
 ###
 
@@ -159,7 +164,7 @@ length{M,N}(::CMat{M,N}) = M*N
 size{M,N}(::CMat{M,N}) = (M,N)
 size{M,N}(X::CMat{M,N},i::Int) = i<1||i>2?1:(i==1:M:N)
 ndims(::CMat) = 2
-issquare{M,N}(X::Cmat{M,N}) = M==N
+issquare{M,N}(X::CMat{M,N}) = M==N
 
 immutable RankOne{M,N,E} <: CMat{M,N,E}
   col::CVec{M,E} 
@@ -184,7 +189,18 @@ colmat{E}(col::AnyVec{E}) = rankone(col,repvec(1,one(E)))
 reprows{E}(m::Int,row::AnyVec{E}) = rankone(repvec(m,one(E)),row)
 repcols{E}(col::AnyVec{E},n::Int) = rankone(col,repvec(n,one(E)))
 
+sum(A::RankOne) = sum(A.col)*sum(A.row)
+function sum{M,N}(A::RankOne,i::Int)
+    if i==1 return reshape(sum(A.col)*A.row,1,N) end
+    if i==2 return reshape(A.col*sum(A.row),M,1) end
+    return full(A)
+end  
+
+
+
+
 function do_update!{M,N,E}(d::E,D::Matrix{E},R::RankOne{M,N,E})
+    # t.b.d.: some cases could be deferred to BlasX.ger
     col = R.col; row = R.row
     ii = nzindexrange(col); jj = nzindexrange(row)
     for j in jj
@@ -205,9 +221,9 @@ A_mul_Bc{R<:Real}(col::Vector,row::CVec{R}) = rankone(col,row)
 transpose(M::RankOne) = rankone(M.row,M.col)
 transpose(col::CVec) = rowmat(col)
 
-*(R::RankOne,v::AllVecs) = R.col*dot(R.row,v)
-At_mul_B(v::AllVecs,R::RankOne) = rankone(repvec(1,dot(v,R.col)),R.row)
-Ac_mul_B{R<:Real}(v::AllVecs{R},B::RankOne) = rankone(repvec(1,dot(v,B.col)),B.row)
+*(R::RankOne,v::AnyVec) = R.col*dot(R.row,v)
+At_mul_B(v::AnyVec,R::RankOne) = rankone(repvec(1,dot(v,R.col)),R.row)
+Ac_mul_B{R<:Real}(v::AnyVec{R},B::RankOne) = rankone(repvec(1,dot(v,B.col)),B.row)
 
 *(A::RankOne,B::RankOne) = rankone(A.col,dot(A.row,B.col)*B.row)
 *(A::RankOne,B::Matrix) = rankone(A.col,A.row.'*B)
@@ -215,6 +231,12 @@ Ac_mul_B{R<:Real}(v::AllVecs{R},B::RankOne) = rankone(repvec(1,dot(v,B.col)),B.r
 
 *(s::Number,B::RankOne) = rankone(s*B.col,B.row)
 *(A::Matrix,B::RankOne) = rankone(A*B.col,B.row)
+
+trace{N}(A::RankOne{N,N}) = dot(A.col,A,row)
+
+#default, could be made more specific 
+(.*){L}(a::CVec{L},b::AnyVec) = length(b)==L?full(a).*full(b):error("dimension mismatch") 
+(.*){L}(a::Vector,b::CVec{L}) = length(a)==L?a.*full(b):error("dimension mismatch") 
 
 
 #(+)(A::RankOne,B::RankOne) #can give rankone if columns or rows are shared 
@@ -227,23 +249,33 @@ immutable DiagMat{N,E} <: CMat{N,N,E}
   d::CVec{N,E} 
 end
 diagmat{E}(v::Vector{E}) = DiagMat{length(v),E}(wrap(v)) 
-diagmat{E<:Number}(n::Int,s::E==1.0) = DiagMat{n,E}(repvec(n,s)) 
+diagmat{E<:Number}(n::Int,s::E=1.0) = DiagMat{n,E}(repvec(n,s)) 
 
 converte{T,N,E}(R::DiagMat{N,E}) = diagmat(converte(T,R.d))
+isdense(::DiagMat) = false
 
+transpose(A::DiagMat) = A
+sum(A::DiagMat) = sum(A.d) 
+sum{N}(A::DiagMat{N},i::Int) = 1<=i<=2?(i=1?reshape(diag(A),N,1):reshape(diag(A),1,N)):full(A) 
+diag(A::DiagMat) = full(A.d) 
 
 function do_update!{N,E}(d::E,D::Matrix{E},R::DiagMat{N,E})
     dg = R.d;
     ii = nzindexrange(dg)
     for i in ii
-      # @show D[i,i]
-      # @show d*D[i,i]
-      # @show 
       D[i,i] = d*D[i,i] + dg[i] 
     end
     return D
 end
 
+
+*(A::DiagMat,B::Matrix) = scale(full(A.d),B)
+*(A::DiagMat,B::DiagMat) = diagmat(A.d .* B.d)
+*{L}(A::DiagMat{L},b::AnyVec{L}) = full(A.d).*full(b)
+*{N}(A::DiagMat{N},B::RankOne{N}) = rankone(A*B.col,B.row)
+
+*(A::Matrix,B::DiagMat) = scale(A,full(B.d))
+*{M,N}(A::RankOne{M,N},B::DiagMat{N}) = rankone(A.col,B*A.row)
 
 
 end
