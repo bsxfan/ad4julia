@@ -272,13 +272,13 @@ end
 
 
 ######## Libraries of differentiable functions #######################
-include("MatrixFunctionLib.jl")
-#include("FactorizationLib.jl")
-include("ScalarFunctionLib.jl")
+include("dualnumbers/MatrixFunctionLib.jl")
+#include("dualnumbers/FactorizationLib.jl")
+include("dualnumbers/ScalarFunctionLib.jl")
 
 
 #######################  Defines convenient test tools ################
-include("TestTools.jl")
+include("dualnumbers/TestTools.jl")
 
 
 end # DualNumbers
