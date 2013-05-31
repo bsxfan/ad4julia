@@ -9,13 +9,13 @@ export loopaddarrays, loopaddarrays!,
        sum1,sum2,sum1blas,sum2blas
 
 
-####################### Bye to goddamn denormals ##########################
+####################### Bye to goddamn subnormals ##########################
 
-if !ccall(:jl_zero_denormals, Bool, (Bool,), true)
-    error("ccall jl_zero_denormals failed")
+if !ccall(:jl_zero_subnormals, Bool, (Bool,), true)
+    error("ccall jl_zero_subnormals failed")
 end
-assert(exp(-710)==0,"denormals are unfortunately still with us")
-println("hooray: denormals disabled!")
+assert(exp(-710)==0,"subnormals are unfortunately still with us")
+println("hooray: subnormals disabled!")
 
 
 
