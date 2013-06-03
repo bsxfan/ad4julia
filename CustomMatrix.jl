@@ -3,13 +3,17 @@ module CustomMatrix
 
 importall Base
 
-using MatrixUpdating.update!
+using GenUtils
 
 export onevec, repvec, wrap,
        rankone, rowmat, colmat, reprows, repcols,
        diagmat,
        blocksparse,
-       update!
+       update! ,
+       procrustean_update!
+
+include("custommatrix/MatrixUpdating.jl") #declares update and procrustean_update  
+
 
 # Custom Array
 abstract CArray{E<:Number}
@@ -95,7 +99,7 @@ nzindexrange{L,E,P}(v::OneVec{L,E,P}) = P
 getindex(v::OneVec,ii...) = v.s # valid only for nzindexrange
 
 sum(v::OneVec) = v.s
-custom_update!{L,E,P}(d::Number,D::Array,S::OneVec{L<E<P}) = (D[P] = d*D[P] + S.s; D)
+custom_update!{L,E,P}(d::Number,D::Array,S::OneVec{L,E,P}) = (D[P] = d*D[P] + S.s; D)
 
 ###
 
@@ -114,7 +118,7 @@ nzindexrange{L}(v::RepVec{L}) = 1:L
 getindex(v::RepVec,ii...) = v.s # valid only for nzindexrange
 
 sum{L}(v::RepVec{L}) = v.s*L
-custom_update!{L,E,P}(d::Number,D::Array,S::RepVec{L<E<P}) = update!(d,D,S.s)
+custom_update!(d::Number,D::Array,S::RepVec) = update!(d,D,S.s)
 
 ####
 typealias _WVec{E,L} WVec{L,E}
@@ -185,7 +189,7 @@ dot(x::Vector,y::OneVec) = dot(y,x)
 abstract CMat{M,N,E} <: CArray{E}
 length{M,N}(::CMat{M,N}) = M*N
 size{M,N}(::CMat{M,N}) = (M,N)
-size{M,N}(X::CMat{M,N},i::Int) = i<1||i>2?1:(i==1:M:N)
+size{M,N}(X::CMat{M,N},i::Int) = i<1||i>2?1:(i==1?M:N)
 ndims(::CMat) = 2
 issquare{M,N}(X::CMat{M,N}) = M==N
 
@@ -216,10 +220,16 @@ converte{T,M,N,E}(R::RankOne{M,N,E}) = rankone(converte(T,R.col),converte(T,R.ro
 
 ctranspose{R<:Real}(M::RankOne{R}) = transpose(M)
 
-rowmat{E}(row::AnyVec{E}) = rankone(repvec(1,one(E)),row)
-colmat{E}(col::AnyVec{E}) = rankone(col,repvec(1,one(E)))
+rowmat{E}(row::CVec{E}) = rankone(repvec(1,one(E)),row)
+rowmat(row::Vector) = reshape(row,1,length(row))
+colmat{E}(col::CVec{E}) = rankone(col,repvec(1,one(E)))
+colmat(col::Vector) = reshape(col,length(col),1)
+
 reprows{E}(m::Int,row::AnyVec{E}) = rankone(repvec(m,one(E)),row)
+reprows(m::Int,row::Matrix) = length(row)!=max(size(row))?error("matrix too fat"):reprows(m,vec(row))
+
 repcols{E}(col::AnyVec{E},n::Int) = rankone(col,repvec(n,one(E)))
+reprows(col::Matrix,n::Int) = length(col)!=max(size(col))?error("matrix too fat"):repcols(vec(col),1)
 
 sum(A::RankOne) = sum(A.col)*sum(A.row)
 function sum{M,N}(A::RankOne,i::Int)

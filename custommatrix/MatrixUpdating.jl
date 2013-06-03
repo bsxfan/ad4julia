@@ -1,8 +1,3 @@
-module MatrixUpdating
-
-using GenUtils
-
-export procrustean_update! #, update!
 
 
 ####  update!(d,D,S) ####
@@ -25,9 +20,9 @@ export procrustean_update! #, update!
 # -- does not have to check types, but should succeed if "types allow".
 #
 
-update!(d::Number,D::Number,S:;Number) = d*D+S
+size2(A) = size(A,1), size(A,2)
 
-# Can create new D to allow conversion --- use the returned D
+update!(d::Number,D::Number,S::Number) = d*D+S
 function update!{E<:Number,F<:Number}(d::E,D::Array{F},S)
     # Check size and do conversions here, 
     # Then defer to specific implementations 
@@ -39,38 +34,39 @@ function update!{E<:Number,F<:Number}(d::E,D::Array{F},S)
     else
       d = convert(F,d)
     end
-    if size(S) == size(D)
+    if size2(S) == size2(D)
         if isa(S,Array) return full_update!(d,D,S) end
         return custom_update!(d,D,S)
     end
     if ndims(S)==0 return update_broadcast_scalar!(d,D,S) end
     if length(S)==1 return update_broadcast_scalar!(d,D,S[1]) end
     if ndims(D)==2
-      if size(S) == (size(D,1),1) return update_broadcast_col!(d,D,S) end
-      if size(S) == (1,size(D,2)) return update_broadcast_row!(d,D,S) end
+      if size2(S) == (size(D,1),1) return update_broadcast_col!(d,D,S) end
+      if size2(S) == (1,size(D,2)) return update_broadcast_row!(d,D,S) end
     end
-    error("cannot update, sizes don't match")
+    error("cannot update $(size(S)) into $(size(D))")
 end
 
 
 
-function full_update(d::Number, D::Array, S::Array)
+function full_update!(d::Number, D::Array, S::Array)
+    @assert length(S) == length(D)
     for i=1:length(D)
       D[i] = d*D[i] + S[i]
     end
     return D
 end
 
-function update_broadcast_scalar(d::Number, D::Array, s::Number)
+function update_broadcast_scalar!(d::Number, D::Array, s::Number)
     for i=1:length(D)
       D[i] = d*D[i] + s
     end
     return D
 end
 
-function update_broadcast_col(d::Number, D::Matrix, s::Array)
-    @assert size(s,1) == length(s)
+function update_broadcast_col!(d::Number, D::Matrix, s::Array)
     M,N = size(D)
+    @assert size(s,1) == length(s) == M
     for j=1:N, i=1:M
       D[i,j] = d*D[i,j] + s[i]
     end
@@ -78,13 +74,13 @@ function update_broadcast_col(d::Number, D::Matrix, s::Array)
 end
 
 
-function update_broadcast_row(d::Number, D::Matrix, s::Array)
-    @assert size(s,2) == length(s)
+function update_broadcast_row!(d::Number, D::Matrix, s::Array)
     M,N = size(D)
+    @assert size(s,2) == length(s) == N
     for j=1:N
       sj = s[j]
       for i=1:M
-          D[i,j] = d*D[i,j] + s[i]
+          D[i,j] = d*D[i,j] + sj
       end
     end
     return D
@@ -107,12 +103,12 @@ function procrustean_update!(D::Array,S)
     for k=1:ndims(S)
         szD = size(D,k) ; szS = size(S,k)
       if szS > szD
-        if szD != 1 error("cannot reduce size(S,$k)==$szS to $szDk") end
+        if szD != 1 error("cannot reduce size(S,$k)==$szS to $szD") end
         S = sum(S,k) # this changes size(S,k), but not ndims(S)
       end
     end
     # update, with broadcast
-    return update!(1.0,D,S)      
+    return update!(one(eltype(D)),D,S)      
 end
 
 # In Greek mythology, Procrustes was a rogue smith and bandit who attacked people by stretching them,
@@ -121,4 +117,3 @@ end
 
 
 
-end # module
