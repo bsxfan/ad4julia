@@ -11,25 +11,26 @@ export procrustean_add!
 #    Aways use the return value, the identity of D may change.
 
 
-procrustean_add!(D::Number,S::Number) = D + S  
-procrustean_add!(D::Number,S::AbstractArray) = D + sum(S)  
+procrustean_add!(d::Number,s::Number) = d + s  
+procrustean_add!(d::Number,S) = d + sum(S)  
 
-function procrustean_add!(D::Array,S::Number) 
-    if eltype(D)==typeof(S)
+function procrustean_add!(D::Array,s::Number) 
+    if accepts(D,s)
         for i=1:length(D)
-            D[i] += S # work in-place 
+            D[i] += s # work in-place 
         end
         return D
     else
-        return D+S  # creates a new matrix
+        return D+s  # creates a new matrix
     end
 end
 
 function procrustean_add!(D::Array,S::Array)
     # sum if necessary
     for k=1:ndims(S)
-    	if size(S,k) > size(D,k)
-    		@assert size(D,k) == 1
+        szD = size(D,k) ; szS = size(S,k)
+    	if szS > szDk
+    		if szDk != 1 error("cannot reduce size(S,$k)==$szS to $szDk") end
     		S = sum(S,k) # this changes size(S,k), but not ndims(S)
     	end
     end
@@ -51,5 +52,9 @@ end
 
 # In Greek mythology, Procrustes was a rogue smith and bandit who attacked people by stretching them,
 # or cutting off their legs, so as to force them to fit the size of an iron bed.
+
+
+function update!(d::Number)
+
 
 end #module

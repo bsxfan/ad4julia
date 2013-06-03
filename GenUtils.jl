@@ -7,9 +7,10 @@ export eq,eqsize,eqlength,
        check, prevent,
        argumentsmatch,
        @elapsedloop,
-       promote_eltype,
+       promote_eltype, accepts,
        randw,
-       berror
+       berror,
+       (<-)
 
 
 ######### Patches #####################################
@@ -47,6 +48,23 @@ eqlength(args...) = eq("length mismatch",map(length,args)...)
 ########################################################
 
 promote_eltype(args::AbstractArray...) = promote_type(map(eltype,args)...)
+
+# predicts which conversions will not throw inexact error or similar
+# Note, things like 
+typealias IntFlavours{T<:Integer} Union(T,Complex{T})
+typealias RatFlavours{T<:Rational} Union(T,Complex{T})
+typealias FloatFlavours{T<:FloatingPoint} Union(T,Complex{T})
+willconvert{D<:Number,S<:Number}(::Type{D},::Type{S}) = true
+willconvert{D<:Real,S<:Complex}(::Type{D},::Type{S}) = false
+willconvert{D<:IntFlavours,S<:RatFlavours}(::Type{D},::Type{S}) = false
+willconvert{D<:IntFlavours,S<:FloatFlavours}(::Type{D},::Type{S}) = false
+
+accepts{D<:Number,S<:Number}(A::Array{D},::Type{S}) = willconvert(D,S)
+accepts{D<:Number,S<:Number}(A::Array{D},::S) = willconvert(D,S)
+(<-)(x,y) = <(x,-y)
+(<-){D<:Number,S<:Number}(A::Array{D},::Type{S}) = willconvert(D,S)
+(<-){D<:Number,S<:Number}(A::Array{D},::S) = willconvert(D,S)
+
 
 ############### precondition checking #######################
 check(ok::Bool, msg="assertion failed") = ok?true:error(msg)
