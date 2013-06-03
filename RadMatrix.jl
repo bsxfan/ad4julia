@@ -1,6 +1,6 @@
 module RadMatrix
 
-using Procrustes
+using CustomMatrix, MatrixUpdating
 
 importall Base
 export RadNum,RadScalar,RadVec,RadMat,  #types
@@ -55,7 +55,7 @@ rd(X::BaseNum) = X #for convenience, simplifies code below
 # Returns number of inputs for which backprop is complete.
 backprop(R::BaseNum,G) = 0 #for convenience, simplifies code below
 function backprop(R::RadNum,G)
-	R.gr = procrustean_add!(R.gr,G)
+	R.gr = procrustean_update!(R.gr,G)
 	R.wcount +=1 
 	if R.wcount < R.rcount
 		return 0

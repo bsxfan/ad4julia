@@ -14,17 +14,19 @@ export eq,eqsize,eqlength,
 
 
 ######### Patches #####################################
-# https://github.com/JuliaLang/julia/issues/3202, closed, resolved
+# fixed: https://github.com/JuliaLang/julia/issues/3202
 # convert(::Type{Rational},x::Integer) = convert(Rational{typeof(x)},x)
 
-import Base.power_by_squaring
-^{T<:FloatingPoint}(z::Complex{T}, n::Bool) = n ? z : one(z)
-^{T<:Rational}(z::Complex{T}, n::Bool) = n ? z : one(z)
-^{T<:Integer}(z::Complex{T}, n::Bool) = n ? z : one(z)
+# fixed: https://github.com/JuliaLang/julia/issues/3246
+# import Base.power_by_squaring
+# ^{T<:FloatingPoint}(z::Complex{T}, n::Bool) = n ? z : one(z)
+# ^{T<:Rational}(z::Complex{T}, n::Bool) = n ? z : one(z)
+# ^{T<:Integer}(z::Complex{T}, n::Bool) = n ? z : one(z)
 
-^{T<:FloatingPoint}(z::Complex{T}, n::Integer) = n>=0?power_by_squaring(z,n):power_by_squaring(inv(z),-n)
-^{T<:Rational}(z::Complex{T}, n::Integer) = n>=0?power_by_squaring(z,n):power_by_squaring(inv(z),-n)
-^{T<:Integer}(z::Complex{T}, n::Integer) = power_by_squaring(z,n) # DomainError for n<0
+# ^{T<:FloatingPoint}(z::Complex{T}, n::Integer) = n>=0?power_by_squaring(z,n):power_by_squaring(inv(z),-n)
+# ^{T<:Rational}(z::Complex{T}, n::Integer) = n>=0?power_by_squaring(z,n):power_by_squaring(inv(z),-n)
+# ^{T<:Integer}(z::Complex{T}, n::Integer) = power_by_squaring(z,n) # DomainError for n<0
+
 
 #######################################################
 abstract TagType 

@@ -3,6 +3,8 @@ module CustomMatrix
 
 importall Base
 
+using MatrixUpdating.update!
+
 export onevec, repvec, wrap,
        rankone, rowmat, colmat, reprows, repcols,
        diagmat,
@@ -35,61 +37,6 @@ show(io::IO,X::CArray) = ( println(io,summary(X),"->"); show(full(X)) )
 full{E}(X::CArray{E}) = update!(0,
                                 isdense(X)?Array(E,size(X)):zeros(E,size(X)),
                                 X)  
-
-# Can create new D to allow conversion --- use the returned D
-function update!{E<:Number,F,G}(d::E,D::Matrix{F},R)
-    # Check size and do conversions here, 
-    # Then defer to specific implementations of custom_update()
-    G = eltype(R)
-    T = promote_type(E,F,G)
-    if !accepts(D,eltype(R))
-      D = convert(Array{T},D)
-      d = convert(T,d)
-    else
-      d = convert(F,d)
-    end
-    if isa(R,Matrix) && 
-    return custom_update!(d,D,R) 
-end
-
-
-function full_update(d::Number, D::Matrix, S::Matrix)
-    M,N = size(D)
-    for j=1:N, i=1:M
-      D[i,j] = d*D[i,j] + S[i,j]
-    end
-    return D
-end
-
-function update_broadcast2d(d::Number, D::Matrix, s::Number)
-    M,N = size(D)
-    for j=1:N, i=1:M
-      D[i,j] = d*D[i,j] + s
-    end
-    return D
-end
-
-function update_broadcast_col(d::Number, D::Matrix, s::Array)
-    @assert size(s,1) == length(s)
-    M,N = size(D)
-    for j=1:N, i=1:M
-      D[i,j] = d*D[i,j] + s[i]
-    end
-    return D
-end
-
-
-function update_broadcast_row(d::Number, D::Matrix, s::Array)
-    @assert size(s,2) == length(s)
-    M,N = size(D)
-    for j=1:N
-      sj = s[j]
-      for i=1:M
-          D[i,j] = d*D[i,j] + s[i]
-      end
-    end
-    return D
-end
 
 
 #############################################################################
@@ -130,6 +77,8 @@ getindex(v::WVec,ii...) = getindex(v.v,ii...) # valid only for nzindexrange
 
 sum(v::WVec) = sum(v.v)
 
+custom_update!(d::Number,D::Array,S::WVec) = update!(s,D,S.v)
+
 ###
 
 immutable OneVec{L,E,P} <: CVec{L,E}
@@ -145,7 +94,8 @@ isdense(::OneVec) = false
 nzindexrange{L,E,P}(v::OneVec{L,E,P}) = P
 getindex(v::OneVec,ii...) = v.s # valid only for nzindexrange
 
-sum(v::WVec) = v.s
+sum(v::OneVec) = v.s
+custom_update!{L,E,P}(d::Number,D::Array,S::OneVec{L<E<P}) = (D[P] = d*D[P] + S.s; D)
 
 ###
 
@@ -163,7 +113,8 @@ converte{L,E,F}(::Type{E},v::RepVec{L,F}) = RepVec{L,E}(convert(E,v.s))
 nzindexrange{L}(v::RepVec{L}) = 1:L
 getindex(v::RepVec,ii...) = v.s # valid only for nzindexrange
 
-sum{L}(v::WVec{L}) = v.s*L
+sum{L}(v::RepVec{L}) = v.s*L
+custom_update!{L,E,P}(d::Number,D::Array,S::RepVec{L<E<P}) = update!(d,D,S.s)
 
 ####
 typealias _WVec{E,L} WVec{L,E}
