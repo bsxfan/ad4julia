@@ -3,64 +3,60 @@ module RadMatrix
 using CustomMatrix
 
 importall Base
-export RadNum,RadScalar,RadVec,RadMat,  #types
+export RadNum,  RadNode, bpLeaf, #types
        radnum,backprop,radeval          #functions 
 
 
-# this could be specialized or generalized 
-typealias BaseScalar Number
-typealias BaseMat{T<:BaseScalar} Array{T}
-typealias BaseNum{T<:BaseScalar} Union(T,BaseMat)
 
-abstract RadNum
-
-# declare RadScalar and RadMat
-bpInputNode(G)=1 # input nodes do not backpropate further
-for (BaseType,RadType) in ( (:BaseScalar,:RadScalar), (:BaseMat, :RadMat) )
-	@eval begin
-		type $RadType <: RadNum
-		    st:: $BaseType
-		    gr:: $BaseType
-		    rcount:: Int
-		    wcount:: Int
-		    bp:: Function #backpropagates to all parents, returns number of inputs for which backprop completed
-		    function $RadType(X::$BaseType,bp::Function) #constructor
-		    	assert(ndims(X)<=2,"RAD types limited to scalars, vectors and matrices")
-		        new(X,zero(X),0,0,bp) 
-		    end
-		end
-        # conversions from each BaseNum flavour to corresponding RadNum flavour
-        radnum(X::$BaseType,bp::Function=bpInputNode) = $RadType(X,bp)  
-	end
+# Node in backpropagation DAG. Edges go from output to inputs. Inputs are leaves.
+type RadNode{B} # B annotates type of original variable---not used currently
+    gr # accumulates gradient from all fanouts
+    rcount:: Int  # fanout in fwd pass
+    wcount:: Int  # fanin in backward pass
+    bp:: Function #backpropagates to all parents
 end
 
-typealias RadOrNot Union(RadNum,BaseNum)
-israd(X::RadOrNot) = isa(X,RadNum)
+# Wrapper for numeric type B, which will cause backpropagation DAG to be 
+# constructed during forward calculations.
+immutable RadNum{B}
+		    st:: B            #standard numeric part
+		    nd:: RadNode{B}   #backprop node
+            RadNum(X::B,bp::Function) = new(X,RadNode{B}(zero(X),0,0,bp)) 
+end
+bpLeaf(G)=1 # input nodes do not backpropate further
+radnum{B}(X::B,bp::Function=bpLeaf) = RadNum{B}(X,bp)  
 
+israd(X) = isa(X,RadNum)
 
-ndims(R::RadNum) = ndims(R.st) 
-isscalar(R::RadOrNot) = ndims(R)==0
-size(R::RadNum,ii...) = size(R.st,ii...) 
-endof(R::RadNum) = endof(R.st)
-length(R::RadNum) = length(R.st)
-
-
+# defer several functions to standard part
+# derivatives play no role here
+for fun in {:size,:ndims,:endof,:length,:eltype,:start}
+    @eval begin
+        ($fun)(R::RadNum) = ($fun)(R.st)
+    end
+end
+for fun in {:size,:next,:done}
+    @eval begin
+        ($fun)(R::RadNum,args...) = ($fun)(R.st,args...)
+    end
+end
 
 
 # reads value, counts references
-rd(R::RadNum) = (R.rcount += 1; R.st)
-rd(X::BaseNum) = X #for convenience, simplifies code below
+rd(R::RadNum) = (R.nd.rcount += 1; R.st)
+rd(X) = X #default for convenience, simplifies code below
 
 # Accumulates gradient, then backpropagates to all inputs.
 # Returns number of inputs for which backprop is complete.
-backprop(R::BaseNum,G) = 0 #for convenience, simplifies code below
-function backprop(R::RadNum,G)
+backprop(R,G) = 0 #for convenience, simplifies code below
+function backprop(R::RadNode,G)
 	@assert R.wcount <= R.rcount
-	if R.wcount == R.rcount ## reset
+	if R.wcount == R.rcount ## reset to backprop another gradient
       R.gr = zero!(R.gr)
       R.wcount = 0
 	end
-	R.gr = procrustean_update!(R.gr,G)
+	# R.gr += G, in-place if possible, sums or broadcasts G as needed to fit R.gr
+	R.gr = procrustean_update!(R.gr,G) 
 	R.wcount +=1 
 	if R.wcount < R.rcount # wait for more 
 		return 0
@@ -68,8 +64,8 @@ function backprop(R::RadNum,G)
 		return R.bp(R.gr) # go deeper
     end
 end
-zero!(n::BaseScalar) = zero(n)
-zero!{E}(X::BaseMat{E}) = fill!(X,zero(E))
+zero!(n::Number) = zero(n)
+zero!{E}(X::Array{E}) = fill!(X,zero(E))
 
 #Evaluate y=f(args...) and differentiates w.r.t. each flagged argument
 # returns y and a function to backpropagate gradients
@@ -85,11 +81,12 @@ function radeval(f::Function,
    	m = length(dargs)
 	Z = f(args...)
 	y = rd(Z)
-	function do_backprop(g::BaseNum) # g---the gradient to backpropagate---must be of same size as y
-		@assert Z.rcount==1
-  		@assert m == backprop(Z,g) 
-    	@assert Z.wcount==Z.rcount==1
-    	return m==1?dargs[1].gr:ntuple(m,i->dargs[i].gr)
+	nd = Z.nd
+	function do_backprop(g) # g---the gradient to backpropagate---must be of same size as y
+		@assert nd.rcount==1
+  		@assert m == backprop(nd,g) 
+    	@assert nd.wcount==nd.rcount==1
+    	return m==1?dargs[1].nd.gr:ntuple(m,i->dargs[i].nd.gr)
     end
     return y, do_backprop 
 end
@@ -100,33 +97,36 @@ include("radmatrix/testrad.jl")
 
 
 #################### matrix wiring #######################################
-reshape(R::RadNum,ii...) = (s = size(R);radnum(reshape(rd(R),ii...),G->backprop(R,reshape(G,s)))) 
+reshape(R::RadNum,ii...) = (sz = size(R); radnum(
+	reshape(rd(R),ii...),
+	G->backprop(R.nd,reshape(G,sz))                )
+) 
 vec(R::RadNum) = reshape(R,length(R))
 
 
 
 #################### unary operator library ##############################
-transpose(X::RadNum) = radnum(rd(X).',G -> backprop(X,G.')) 
-(-)(X::RadNum) = radnum(-rd(X),G -> backprop(X,-G)) 
-(+)(X::RadNum) = radnum(+rd(X),G -> backprop(X,+G)) 
+transpose(X::RadNum) = radnum(rd(X).',G -> backprop(X.nd, G.')) 
+(-)(X::RadNum) = radnum(-rd(X),G -> backprop(X.nd, -G)) 
+(+)(X::RadNum) = radnum(+rd(X),G -> backprop(X.nd, +G)) 
 
 
 #################### binary operator library ##############################
-for (L,R) in ( (:RadNum,:BaseNum), (:BaseNum,:RadNum), (:RadNum,:RadNum) )
+for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
 	@eval begin
-        (+)(X::$L, Y::$R) = radnum(rd(X) + rd(Y), G -> backprop(X,G) + backprop(Y,G) ) 
-        (-)(X::$L, Y::$R) = radnum(rd(X) - rd(Y), G -> backprop(X,G) + backprop(Y,-G) ) 
+        (+)(X::$L, Y::$R) = radnum(rd(X) + rd(Y), G -> backprop(X.nd,G) + backprop(Y.nd,G) ) 
+        (-)(X::$L, Y::$R) = radnum(rd(X) - rd(Y), G -> backprop(X.nd,G) + backprop(Y.nd,-G) ) 
         
         function (.*)(X::$L, Y::$R) 
         	Xst = rd(X)
         	Yst = rd(Y)
-        	radnum(Xst .* Yst, G -> backprop(X,G.*Yst) + backprop(Y,G.*Xst) ) 
+        	radnum(Xst .* Yst, G -> backprop(X.nd,G.*Yst) + backprop(Y.nd,G.*Xst) ) 
         end
         
         function (*)(X::$L, Y::$R) 
         	Xst = rd(X)
         	Yst = rd(Y)
-        	radnum(Xst * Yst, G -> backprop(X,G*Yst.') + backprop(Y,Xst.'*G) ) 
+        	radnum(Xst * Yst, G -> backprop(X.nd,G*Yst.') + backprop(Y.nd,Xst.'*G) ) 
         end
 
 
@@ -139,7 +139,7 @@ end
 
 
 #################### matrix function library ##########################################
-trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R,diagm(G*ones(size(R,1))))) 
+trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R.nd,diagm(G*ones(size(R,1))))) 
 
 
 
