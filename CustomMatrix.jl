@@ -12,7 +12,7 @@ export onevec, repvec, wrap,
        update! ,
        procrustean_update!
 
-include("custommatrix/MatrixUpdating.jl") #declares update and procrustean_update  
+include("custommatrix/matrixUpdating.jl") #declares update and procrustean_update  
 
 
 # Custom Array

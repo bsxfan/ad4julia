@@ -1,10 +1,10 @@
 module RadMatrix
 
-using CustomMatrix, MatrixUpdating
+using CustomMatrix
 
 importall Base
 export RadNum,RadScalar,RadVec,RadMat,  #types
-       radnum,backprop,radeval                 #functions 
+       radnum,backprop,radeval          #functions 
 
 
 # this could be specialized or generalized 
@@ -55,16 +55,21 @@ rd(X::BaseNum) = X #for convenience, simplifies code below
 # Returns number of inputs for which backprop is complete.
 backprop(R::BaseNum,G) = 0 #for convenience, simplifies code below
 function backprop(R::RadNum,G)
+	@assert R.wcount <= R.rcount
+	if R.wcount == R.rcount ## reset
+      R.gr = zero!(R.gr)
+      R.wcount = 0
+	end
 	R.gr = procrustean_update!(R.gr,G)
 	R.wcount +=1 
-	if R.wcount < R.rcount
+	if R.wcount < R.rcount # wait for more 
 		return 0
-	elseif R.wcount > R.rcount
-	    error("more writes than reads")
 	else
-		return R.bp(R.gr)
+		return R.bp(R.gr) # go deeper
     end
 end
+zero!(n::BaseScalar) = zero(n)
+zero!{E}(X::BaseMat{E}) = fill!(X,zero(E))
 
 #Evaluate y=f(args...) and differentiates w.r.t. each flagged argument
 # returns y and a function to backpropagate gradients
@@ -82,16 +87,16 @@ function radeval(f::Function,
 	y = rd(Z)
 	function do_backprop(g::BaseNum) # g---the gradient to backpropagate---must be of same size as y
 		@assert Z.rcount==1
-    	if Z.wcount==0
-    		@assert m == backprop(Z,g) 
-    	else
-    	    error("this function cannot be called more than once")
-    	end
+  		@assert m == backprop(Z,g) 
     	@assert Z.wcount==Z.rcount==1
     	return ntuple(m,i->dargs[i].gr)
     end
     return y, do_backprop 
 end
+
+
+include("radmatrix/testrad.jl")
+
 
 
 #################### matrix wiring #######################################
