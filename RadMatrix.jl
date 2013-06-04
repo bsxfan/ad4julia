@@ -89,7 +89,7 @@ function radeval(f::Function,
 		@assert Z.rcount==1
   		@assert m == backprop(Z,g) 
     	@assert Z.wcount==Z.rcount==1
-    	return ntuple(m,i->dargs[i].gr)
+    	return m==1?dargs[1].gr:ntuple(m,i->dargs[i].gr)
     end
     return y, do_backprop 
 end

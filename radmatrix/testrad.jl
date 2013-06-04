@@ -1,6 +1,6 @@
 
 
-function compute_radjacobians(Y,g::Function)
+function compute_reverse_mode_jacobians(Y,g::Function)
 	m = length(Y)
     DY = zeros(eltype(Y),size(Y)) ; 
     DY[1] = 1
@@ -24,7 +24,7 @@ function compute_radjacobians(Y,g::Function)
 		    J[i,:] = vec(DX[k])
 		end
     end
-    return Jacobians
+    return K==1?Jacobians[1]:Jacobians
 end
 
 radjacobians(f::Function,args,flags=trues(length(args)) ) = 
