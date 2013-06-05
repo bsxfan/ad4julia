@@ -46,7 +46,7 @@ israd(X) = isa(X,RadNum)
 
 # defer several functions to standard part
 # derivatives play no role here
-for fun in {:size,:ndims,:endof,:length,:eltype,:start}
+for fun in {:size,:ndims,:endof,:length,:eltype,:start,:isscalar}
     @eval begin
         ($fun)(R::RadNum) = ($fun)(R.st)
     end
@@ -59,8 +59,8 @@ end
 
 
 # reads value, counts references
-rd(R::RadNum) = (R.nd.rcount += 1; (R.st, R.nd) )
-rd(X) = X,nothing #default for convenience, simplifies code below
+rd(R::RadNum) = (R.nd.rcount += 1; (R.st, R.nd, true) )
+rd(X) = X,nothing,false #default for convenience, simplifies code below
 
 
 # Accumulates gradient, then backpropagates to all inputs.
@@ -123,18 +123,18 @@ vec(R::RadNum) = reshape(R,length(R))
 #################### unary operator library ##############################
 unpackX = :((Xs,Xn) = rd(X))
 @eval begin
-    transpose(X::RadNum) = ( unpackX;
+    transpose(X::RadNum) = ( $unpackX;
         radnum(Xs.',G -> backprop(Xn, G.')) )
 
-    (-)(X::RadNum) = ( unpackX;
+    (-)(X::RadNum) = ( $unpackX;
         radnum(-Xs,G -> backprop(Xn, -G)) ) 
 
-    (+)(X::RadNum) = ( unpackX;
+    (+)(X::RadNum) = ( $unpackX;
         radnum(+Xs,G -> backprop(Xn, +G)) )
 end
 
 #################### binary operator library ##############################
-unpackXY = :( (Xs,Xn) = rd(X); (Ys,Yn) = rd(Y) )
+unpackXY = :( (Xs,Xn,rX) = rd(X); (Ys,Yn,rY) = rd(Y) )
 for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
 	@eval begin
 
@@ -158,9 +158,12 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             FX = factorize(Xs);
             Z = FX \ Ys; 
             thin = size(Ys,1) > size(Ys,2); # For square X: Z,Y,G all have the same size
-            radnum(Z, G -> backprop(Xn, FX.' \ -G * Z.') #could use rankone for vector RHS
-                         + backprop(Yn, FX.' \ G) ) 
+            radnum(Z, G -> backprop(Xn, thin?(FX.' \ -G) * Z.' : FX.' \ (-G * Z.')) #could use rankone for vector RHS
+                         + backprop(Yn, FX.' \ G) ) # FX.'\ G is common
            )
+
+        (/)(X::$L, Y::$R) = (Y.'\X.').' #' can be made more efficient
+
 
         #At_mul_B
         #A_mul_Bt

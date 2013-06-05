@@ -7,11 +7,8 @@ export eq,eqsize,eqlength,
        check, prevent,
        argumentsmatch,
        @elapsedloop,
-       promote_eltype, accepts,
-       randw,
-       berror,
-       (<-)
-
+       promote_eltype, accepts, isscalar,
+       randw
 
 ######### Patches #####################################
 # fixed: https://github.com/JuliaLang/julia/issues/3202
@@ -47,6 +44,8 @@ eqlength(args...) = eq("length mismatch",map(length,args)...)
 
 ########################################################
 
+isscalar(X) = ndims(X) == 0
+
 promote_eltype(args::AbstractArray...) = promote_type(map(eltype,args)...)
 
 # predicts which conversions will not throw inexact error or similar
@@ -61,9 +60,6 @@ willconvert{D<:IntFlavours,S<:FloatFlavours}(::Type{D},::Type{S}) = false
 
 accepts{D<:Number,S<:Number}(A::Array{D},::Type{S}) = willconvert(D,S)
 accepts{D<:Number,S<:Number}(A::Array{D},::S) = willconvert(D,S)
-(<-)(x,y) = <(x,-y)
-(<-){D<:Number,S<:Number}(A::Array{D},::Type{S}) = willconvert(D,S)
-(<-){D<:Number,S<:Number}(A::Array{D},::S) = willconvert(D,S)
 
 
 ############### precondition checking #######################
@@ -73,7 +69,7 @@ prevent(notok::Bool, msg="assertion failed") = notok?error(msg):true
 #  - for assignment, use brackets: check(condition)&&(x=5), or check(condition)&&(x=5;true)
 
 # Also provide a user-definable check for user-defined operators. 
-# Users can suooly argumentsmatch
+# Users can supply argumentsmatch
 check(op::Function,A,B) = check(argumentsmatch(op,A,B)) 
 #default argumentsmatch for matrix arguments
 function argumentsmatch(f::Function,A,B)

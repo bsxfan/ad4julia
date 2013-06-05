@@ -37,7 +37,6 @@ end
 
 
 
-
 function reversemode_jacobians(Y,g::Function)
 	m = length(Y)
     DY = zero(Y) ; 
@@ -48,7 +47,8 @@ function reversemode_jacobians(Y,g::Function)
     if !isa(DX,NTuple) DX = (DX,) end
   	K = length(DX); 
     Jacobians = map(DX) do X # create tuple of Jacobian matrices
-        J = Array(eltype(X),m,length(X)); J[1,:] = vec(X); J    
+        #J = Array(eltype(X),m,length(X)); J[1,:] = vec(X); J    
+        J = Array(eltype(X),m,length(X)); J[1,:] = X; J    
     end
     for i = 2:m
 		DY[i] = 1
@@ -58,32 +58,35 @@ function reversemode_jacobians(Y,g::Function)
         if !isa(DX,NTuple) DX = (DX,) end
 	    for k = 1:K
 		    J = Jacobians[k]
-		    J[i,:] = vec(DX[k])
+            #J[i,:] = vec(DX[k])
+            J[i,:] = DX[k]
 		end
     end
     return K==1?Jacobians[1]:Jacobians
 end
 
 
+setcomp!(A::Array,k::Int,i::Int,v) = if ndims(A[k])==0 A[k] = v else A[k][i] = v end
 
 function forwardmode_jacobians(fwd::Function, X...)
     K = length(X)
     Jacobians = cell(K)
-    DX = map(zero,X)
+    DX = {zero(X[k]) for k=1:K}
     for k = 1:K
-        D = DX[k]
-        D[1] = 1
+        setcomp!(DX,k,1,1)
         DY = fwd(DX...)
-        D[1] = 0
-        @assert sum(abs(D)) == 0
-        J = Array(eltype(DY),length(DY),length(D))
+        setcomp!(DX,k,1,0)
+        @assert sum(abs(DX[k])) == 0
+        J = Array(eltype(DY),length(DY),length(DX[k]))
         J[:,1] = vec(DY)
-        for j = 2:length(D)
-            D[j] = 1
+        #J[:,1] = vec(DY)
+        for j = 2:length(DX[k])
+            setcomp!(DX,k,j,1)
             DY = fwd(DX...)
-            D[j] = 0
-            @assert sum(abs(D)) == 0
-            J[:,j] = vec(DY)
+            setcomp!(DX,k,j,0)
+            @assert sum(abs(DX[k])) == 0
+            #J[:,j] = vec(DY)
+            J[:,j] = DY
         end
         Jacobians[k] = J
     end
