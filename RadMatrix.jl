@@ -4,8 +4,24 @@ using CustomMatrix
 
 importall Base
 export RadNum,  RadNode, bpLeaf, #types
-       radnum,backprop,radeval          #functions 
+       radnum,backprop,radeval,compare_jacobians          #functions 
 
+import Base.LinAlg: BLAS, LAPACK, BlasFloat, LU
+
+#default factorize
+factorize(X::Matrix) = lufact(X)
+function At_ldiv_B{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
+    if A.info > 0; throw(SingularException(A.info)); end
+    LAPACK.getrs!('T', A.factors, A.ipiv, copy(B))
+end
+function At_ldiv_Bt{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
+    if A.info > 0; throw(SingularException(A.info)); end
+    LAPACK.getrs!('T', A.factors, A.ipiv, transpose(B))
+end
+function A_ldiv_Bt{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
+    if A.info > 0; throw(SingularException(A.info)); end
+    LAPACK.getrs!('N', A.factors, A.ipiv, transpose(B))
+end
 
 
 # Node in backpropagation DAG. Edges go from output to inputs. Inputs are leaves.
@@ -43,12 +59,13 @@ end
 
 
 # reads value, counts references
-rd(R::RadNum) = (R.nd.rcount += 1; R.st)
-rd(X) = X #default for convenience, simplifies code below
+rd(R::RadNum) = (R.nd.rcount += 1; (R.st, R.nd) )
+rd(X) = X,nothing #default for convenience, simplifies code below
+
 
 # Accumulates gradient, then backpropagates to all inputs.
 # Returns number of inputs for which backprop is complete.
-backprop(R,G) = 0 #for convenience, simplifies code below
+backprop(::Nothing,G) = 0 #for convenience, simplifies code below
 function backprop(R::RadNode,G)
 	@assert R.wcount <= R.rcount
 	if R.wcount == R.rcount ## reset to backprop another gradient
@@ -79,9 +96,7 @@ function radeval(f::Function,
 	args = ntuple(n,i->flags[i]?radnum(args[i]):args[i])
  	dargs = args[flags]
    	m = length(dargs)
-	Z = f(args...)
-	y = rd(Z)
-	nd = Z.nd
+	y,nd = rd(f(args...))
 	function do_backprop(g) # g---the gradient to backpropagate---must be of same size as y
 		@assert nd.rcount==1
   		@assert m == backprop(nd,g) 
@@ -106,29 +121,46 @@ vec(R::RadNum) = reshape(R,length(R))
 
 
 #################### unary operator library ##############################
-transpose(X::RadNum) = radnum(rd(X).',G -> backprop(X.nd, G.')) 
-(-)(X::RadNum) = radnum(-rd(X),G -> backprop(X.nd, -G)) 
-(+)(X::RadNum) = radnum(+rd(X),G -> backprop(X.nd, +G)) 
+unpackX = :((Xs,Xn) = rd(X))
+@eval begin
+    transpose(X::RadNum) = ( unpackX;
+        radnum(Xs.',G -> backprop(Xn, G.')) )
 
+    (-)(X::RadNum) = ( unpackX;
+        radnum(-Xs,G -> backprop(Xn, -G)) ) 
+
+    (+)(X::RadNum) = ( unpackX;
+        radnum(+Xs,G -> backprop(Xn, +G)) )
+end
 
 #################### binary operator library ##############################
+unpackXY = :( (Xs,Xn) = rd(X); (Ys,Yn) = rd(Y) )
 for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
 	@eval begin
-        (+)(X::$L, Y::$R) = radnum(rd(X) + rd(Y), G -> backprop(X.nd,G) + backprop(Y.nd,G) ) 
-        (-)(X::$L, Y::$R) = radnum(rd(X) - rd(Y), G -> backprop(X.nd,G) + backprop(Y.nd,-G) ) 
-        
-        function (.*)(X::$L, Y::$R) 
-        	Xst = rd(X)
-        	Yst = rd(Y)
-        	radnum(Xst .* Yst, G -> backprop(X.nd,G.*Yst) + backprop(Y.nd,G.*Xst) ) 
-        end
-        
-        function (*)(X::$L, Y::$R) 
-        	Xst = rd(X)
-        	Yst = rd(Y)
-        	radnum(Xst * Yst, G -> backprop(X.nd,G*Yst.') + backprop(Y.nd,Xst.'*G) ) 
-        end
 
+        (+)(X::$L, Y::$R) = ( $unpackXY;
+            radnum(Xs + Ys, G -> backprop(Xn,G) + backprop(Yn,G) ) 
+           ) 
+    
+        (-)(X::$L, Y::$R) = ( $unpackXY;
+            radnum(Xs - Ys, G -> backprop(Xn,G) + backprop(Yn,-G) ) 
+           )
+        
+        (.*)(X::$L, Y::$R) = ( $unpackXY;
+        	radnum(Xs .* Ys, G -> backprop(Xn,G.*Ys) + backprop(Yn,G.*Xs) ) 
+            )
+        
+        (*)(X::$L, Y::$R) = ( $unpackXY;
+        	radnum(Xs * Ys, G -> backprop(Xn,G*Ys.') + backprop(Yn,Xs.'*G) ) 
+           )
+
+        (\)(X::$L, Y::$R) = ( $unpackXY;
+            FX = factorize(Xs);
+            Z = FX \ Ys; 
+            thin = size(Ys,1) > size(Ys,2); # For square X: Z,Y,G all have the same size
+            radnum(Z, G -> backprop(Xn, FX.' \ -G * Z.') #could use rankone for vector RHS
+                         + backprop(Yn, FX.' \ G) ) 
+           )
 
         #At_mul_B
         #A_mul_Bt
@@ -139,8 +171,11 @@ end
 
 
 #################### matrix function library ##########################################
-trace(R::RadNum) = radnum(trace(rd(R)),G->backprop(R.nd,diagm(G*ones(size(R,1))))) 
-
+@eval begin
+    trace(X::RadNum) = ( unpackX;
+         radnum(trace(Xs),G->backprop(Xn,diagm(G*ones(size(Xs,1))))) 
+        )
+end
 
 
 

@@ -1,3 +1,41 @@
+function compare_jacobians(f::Function,args,flags=trues(length(args)) )
+
+    Jr = rad_jacobians(f,args,flags)
+    Jc = complexstep_jacobians(f,args,flags)
+    if !isa(Jr,NTuple)
+      Jr = (Jr,) 
+      Jc = (Jc,)
+    end 
+    K = length(Jr)
+    return mapreduce(k->max(abs(Jr[k]-Jc[k])),max,1:K)
+
+end
+
+
+rad_jacobians(f::Function,args,flags=trues(length(args)) ) = 
+    reversemode_jacobians( radeval(f,args,flags)... )
+
+
+function complexstep_jacobians(f::Function,args,flags=trues(length(args)) )
+    @assert length(args) == length(flags)
+    flags = bool(flags)
+    cargs = {args...}
+    step = 1e-20
+    function fwd(DX...)
+        k = 1
+        for i=1:length(args)
+            if flags[i]
+                cargs[i] = args[i]+(im*step)*DX[k]
+                k +=1
+            end
+        end
+        return imag(f(cargs...))/step
+    end 
+    return forwardmode_jacobians(fwd,args[flags]...) 
+end
+
+
+
 
 
 function reversemode_jacobians(Y,g::Function)
@@ -26,8 +64,6 @@ function reversemode_jacobians(Y,g::Function)
     return K==1?Jacobians[1]:Jacobians
 end
 
-rad_jacobians(f::Function,args,flags=trues(length(args)) ) = 
- 	reversemode_jacobians( radeval(f,args,flags)... )
 
 
 function forwardmode_jacobians(fwd::Function, X...)
@@ -55,22 +91,5 @@ function forwardmode_jacobians(fwd::Function, X...)
 end
 
 
-function complexstep_jacobians(f::Function,args,flags=trues(length(args)) )
-    @assert length(args) == length(flags)
-    flags = bool(flags)
-    cargs = {args...}
-    step = 1e-20
-    function fwd(DX...)
-        k = 1
-        for i=1:length(args)
-            if flags[i]
-                cargs[i] = args[i]+(im*step)*DX[k]
-                k +=1
-            end
-        end
-        return imag(f(cargs...))/step
-    end 
-    return forwardmode_jacobians(fwd,args[flags]...) 
-end
 
 
