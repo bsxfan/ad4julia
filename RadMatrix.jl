@@ -4,8 +4,9 @@ using CustomMatrix
 
 importall Base
 export RadNum,  RadNode, bpLeaf, #types
-       radnum,backprop,radeval,compare_jacobians          #functions 
-
+       radnum,backprop,radeval,
+       compare_jacobians,rad_jacobians,complexstep_jacobians          
+       
 import Base.LinAlg: BLAS, LAPACK, BlasFloat, LU
 
 include("radmatrix/lux.jl") #extend capabilities of LU factorization
@@ -196,19 +197,19 @@ end
 
 #################### matrix function library ##########################################
 @eval begin
-    trace(X::RadNum) = ( unpackX;
+    trace(X::RadNum) = ( $unpackX;
          radnum(trace(Xs),G->backprop(Xn,diagm(G*ones(size(Xs,1))))) 
         )
     
-    logdet(X::RadNum) = ( unpackX;
-        FX = factorize(Xs)
-         radnum(logdet(FX),G->backprop(Xn,G*inv(FX)) ) 
+    logdet(X::RadNum) = ( $unpackX;
+        FX = factorize(Xs);
+         radnum(logdet(FX),G->backprop(Xn,G*inv(FX).') ) 
         )
     
-    inv(X::RadNum) = ( unpackX;
-        FX = factorize(Xs)
-        Z = inv(FX)
-         radnum(Z, G->backprop(Xn,-(FX.' \ (G * Z.')) ) 
+    inv(X::RadNum) = ( $unpackX;
+        FX = factorize(Xs);
+        Z = inv(FX);
+         radnum(Z, G->backprop(Xn,-(FX.' \ (G * Z.')) ) ) 
         )
 end
 
