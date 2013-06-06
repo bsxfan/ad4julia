@@ -8,21 +8,7 @@ export RadNum,  RadNode, bpLeaf, #types
 
 import Base.LinAlg: BLAS, LAPACK, BlasFloat, LU
 
-#default factorize
-factorize(X::Matrix) = lufact(X)
-function At_ldiv_B{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
-    if A.info > 0; throw(SingularException(A.info)); end
-    LAPACK.getrs!('T', A.factors, A.ipiv, copy(B))
-end
-function At_ldiv_Bt{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
-    if A.info > 0; throw(SingularException(A.info)); end
-    LAPACK.getrs!('T', A.factors, A.ipiv, transpose(B))
-end
-function A_ldiv_Bt{T<:BlasFloat}(A::LU{T}, B::StridedVecOrMat{T})
-    if A.info > 0; throw(SingularException(A.info)); end
-    LAPACK.getrs!('N', A.factors, A.ipiv, transpose(B))
-end
-
+include("radmatrix/lux.jl") #extend capabilities of LU factorization
 
 # Node in backpropagation DAG. Edges go from output to inputs. Inputs are leaves.
 type RadNode{B} # B annotates type of original variable---not used currently
@@ -112,9 +98,9 @@ include("radmatrix/testrad.jl")
 
 
 #################### matrix wiring #######################################
-reshape(R::RadNum,ii...) = (sz = size(R); radnum(
-	reshape(rd(R),ii...),
-	G->backprop(R.nd,reshape(G,sz))                )
+reshape(R::RadNum,ii...) = ((Rs,Rn) = rd(R); sz = size(Rs); radnum(
+	reshape(Rs,ii...),
+	G->backprop(Rn,reshape(G,sz))                )
 ) 
 vec(R::RadNum) = reshape(R,length(R))
 
@@ -143,8 +129,16 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             radnum(Xs + Ys, G -> backprop(Xn,G) + backprop(Yn,G) ) 
            ) 
     
+        (.+)(X::$L, Y::$R) = ( $unpackXY;
+            radnum(Xs .+ Ys, G -> backprop(Xn,G) + backprop(Yn,G) ) 
+           ) 
+
         (-)(X::$L, Y::$R) = ( $unpackXY;
             radnum(Xs - Ys, G -> backprop(Xn,G) + backprop(Yn,-G) ) 
+           )
+
+        (.-)(X::$L, Y::$R) = ( $unpackXY;
+            radnum(Xs .- Ys, G -> backprop(Xn,G) + backprop(Yn,-G) ) 
            )
         
         (.*)(X::$L, Y::$R) = ( $unpackXY;
@@ -154,6 +148,13 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             radnum(Xs .* Ys, back) 
             )
         
+        (./)(X::$L, Y::$R) = ( $unpackXY;
+            Z = Xs ./ Ys;
+            if     both back = G -> backprop(Xn,G./Ys) + backprop(Yn,-G.*Z./Ys)
+            elseif radX back = G -> backprop(Xn,G./Ys)
+            elseif radY back = G ->                      backprop(Yn,-G.*Z./Ys) end;
+            radnum(Z, back) 
+            )
 
         (*)(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
             $unpackXY
@@ -172,7 +173,16 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
                          + backprop(Yn, FX.' \ G) ) # FX.'\ G is common
         end
 
-        (/)(X::$L, Y::$R) = (Y.'\X.').' #' can be made more efficient
+        (/)(X::$L, Y::$R) = (Y.'\X.').' #'  can be made more efficient
+
+
+        dot(X::$L, Y::$R) = ( $unpackXY;
+            if     both back = G -> backprop(Xn,G*Ys) + backprop(Yn,Xs*G)
+            elseif radX back = G -> backprop(Xn,G*Ys) 
+            elseif radY back = G ->                       backprop(Yn,Xs*G) end;
+            radnum(dot(Xs,Ys), back ) 
+           ) 
+
 
 
         #At_mul_B
@@ -188,6 +198,17 @@ end
 @eval begin
     trace(X::RadNum) = ( unpackX;
          radnum(trace(Xs),G->backprop(Xn,diagm(G*ones(size(Xs,1))))) 
+        )
+    
+    logdet(X::RadNum) = ( unpackX;
+        FX = factorize(Xs)
+         radnum(logdet(FX),G->backprop(Xn,G*inv(FX)) ) 
+        )
+    
+    inv(X::RadNum) = ( unpackX;
+        FX = factorize(Xs)
+        Z = inv(FX)
+         radnum(Z, G->backprop(Xn,-(FX.' \ (G * Z.')) ) 
         )
 end
 
