@@ -59,7 +59,7 @@ end
 
 
 # reads value, counts references
-rd(R::RadNum) = (R.nd.rcount += 1; (R.st, R.nd, true) )
+rd(R::RadNum) = (R.nd.rcount += 1; (R.st, R.nd,true) )
 rd(X) = X,nothing,false #default for convenience, simplifies code below
 
 
@@ -134,7 +134,8 @@ unpackX = :((Xs,Xn) = rd(X))
 end
 
 #################### binary operator library ##############################
-unpackXY = :( (Xs,Xn,rX) = rd(X); (Ys,Yn,rY) = rd(Y) )
+
+unpackXY = :( (Xs,Xn,radX) = rd(X); (Ys,Yn,radY) = rd(Y); both = radX && radY )
 for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
 	@eval begin
 
@@ -147,20 +148,29 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
            )
         
         (.*)(X::$L, Y::$R) = ( $unpackXY;
-        	radnum(Xs .* Ys, G -> backprop(Xn,G.*Ys) + backprop(Yn,G.*Xs) ) 
+            if     both back = G -> backprop(Xn,G.*Ys) + backprop(Yn,G.*Xs)
+            elseif radX back = G -> backprop(Xn,G.*Ys)
+            elseif radY back = G ->                      backprop(Yn,G.*Xs) end;
+            radnum(Xs .* Ys, back) 
             )
         
-        (*)(X::$L, Y::$R) = ( $unpackXY;
-        	radnum(Xs * Ys, G -> backprop(Xn,G*Ys.') + backprop(Yn,Xs.'*G) ) 
-           )
 
-        (\)(X::$L, Y::$R) = ( $unpackXY;
-            FX = factorize(Xs);
-            Z = FX \ Ys; 
-            thin = size(Ys,1) > size(Ys,2); # For square X: Z,Y,G all have the same size
+        (*)(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
+            $unpackXY
+            if     both back = G -> backprop(Xn,G*Ys.') + backprop(Yn,Xs.'*G)
+            elseif radX back = G -> backprop(Xn,G*Ys.') 
+            elseif radY back = G ->                       backprop(Yn,Xs.'*G) end
+        	radnum(Xs * Ys, back ) 
+        end
+
+        (\)(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return Y ./ X else
+            $unpackXY
+            FX = factorize(Xs)
+            Z = FX \ Ys
+            thin = size(Ys,1) > size(Ys,2) # For square X: Z,Y,G all have the same size
             radnum(Z, G -> backprop(Xn, thin?(FX.' \ -G) * Z.' : FX.' \ (-G * Z.')) #could use rankone for vector RHS
                          + backprop(Yn, FX.' \ G) ) # FX.'\ G is common
-           )
+        end
 
         (/)(X::$L, Y::$R) = (Y.'\X.').' #' can be made more efficient
 
@@ -170,6 +180,7 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
         #At_mul_Bt
     end
 end
+
 
 
 
