@@ -99,16 +99,55 @@ include("radmatrix/testrad.jl")
 
 
 #################### matrix wiring #######################################
-reshape(R::RadNum,ii...) = ((Rs,Rn) = rd(R); sz = size(Rs); radnum(
-	reshape(Rs,ii...),
-	G->backprop(Rn,reshape(G,sz))                )
-) 
-vec(R::RadNum) = reshape(R,length(R))
+vec(X::RadNum) = reshape(X,length(X))
+
+unpackX = :((Xs,Xn) = rd(X))
+@eval begin
+    reshape(X::RadNum,ii...) = ($unpackX; sz = size(Xs); radnum(
+    	reshape(Xs,ii...),
+    	G->backprop(Xn,reshape(G,sz))                          )
+    ) 
+
+
+    #default, may be wasteful for large X
+    getindex(X::RadNum,ii...) = ($unpackX; sz = size(Xs); radnum(
+        getindex(Xs,ii...),
+        G->(B=zero(Xs);setindex!(B,G,ii...);backprop(Xn,B))     )
+    )
+
+    # getindex(X::RadNum,i::Int) = ($unpackX; k = length(Xs); radnum(
+    #     Xs[i],
+    #     G->backprop(Xn,onevec(k,i,G))                           )
+    # )
+
+    fill(X::RadNum,ii...) = ($unpackX;
+        radnum(fill(Xs,ii...), G-> backprop(Xn,sum(G)))
+        )
+
+
+end
+
+
+function setindex!(D::RadNum,S::RadNum,ii...) # no new node is made, we modify the existing one
+    Ss, Sn = rd(S)
+    setindex!(D.st,Ss,ii...)
+    D.nd.bp = G -> backprop(Sn,getindex(G,ii...)) + D.nd.bp(setindex!(G,0,ii...))
+    return D
+end
+
+function setindex!(D::RadNum,S,ii...) # no new node is made, we modify the existing one
+    setindex!(D.st,S,ii...)
+    D.nd.bp = G -> D.nd.bp(setindex!(G,0,ii...))
+    return D
+end    
+
+
+#setindex!(D,S::RadNum,ii...) = error("cannot write $(typeof(S)) into $(typeof(D))")
+
 
 
 
 #################### unary operator library ##############################
-unpackX = :((Xs,Xn) = rd(X))
 @eval begin
     transpose(X::RadNum) = ( $unpackX;
         radnum(Xs.',G -> backprop(Xn, G.')) )
@@ -198,12 +237,19 @@ end
 #################### matrix function library ##########################################
 @eval begin
     trace(X::RadNum) = ( $unpackX;
-         radnum(trace(Xs),G->backprop(Xn,diagm(G*ones(size(Xs,1))))) 
+         #radnum(trace(Xs),G->backprop(Xn,diagm(G*ones(size(Xs,1))))) 
+         (m,n) = size(Xs); @assert m==n;
+         radnum( trace(Xs),G->backprop(Xn,diagmat(m,G)) ) 
         )
     
     logdet(X::RadNum) = ( $unpackX;
         FX = factorize(Xs);
          radnum(logdet(FX),G->backprop(Xn,G*inv(FX).') ) 
+        )
+
+    det(X::RadNum) = ( $unpackX;
+        FX = factorize(Xs); d = det(FX);
+         radnum(d,G->backprop(Xn,d*G*inv(FX).') ) 
         )
     
     inv(X::RadNum) = ( $unpackX;
@@ -211,6 +257,20 @@ end
         Z = inv(FX);
          radnum(Z, G->backprop(Xn,-(FX.' \ (G * Z.')) ) ) 
         )
+
+    sum(X::RadNum) = ($unpackX;
+        s = sum(Xs); (m,n) = size(Xs);
+         radnum(s, G->backprop(Xn, repel(m,n,G)) ) 
+        )
+
+    sum(X::RadNum,i::Int) = if i<1 || i>2 error("sum(::RadNum,$i) not implemented") else
+        $unpackX;
+        s = sum(Xs,i); (m,n) = size(Xs)
+        if     i==1 back = G->backprop(Xn, reprow(m,G))
+        elseif i==2 back = G->backprop(Xn, repcol(G,n)) end
+        radnum(s, back ) 
+    end
+
 end
 
 

@@ -32,7 +32,7 @@ export factorize, logdet2
 
     function logdet{T<:Real}(A::LU{T})
         d,s = logdet2(A)
-        if s<0 error("DomainError: determinant is negative") end
+        if s<0 error("determinant is negative") end
         return d
     end
 
@@ -44,3 +44,4 @@ export factorize, logdet2
     end
 
     logdet{T<:BlasFloat}(A::Matrix{T}) = logdet(factorize(A))
+    logdet2{T<:BlasFloat}(A::Matrix{T}) = logdet2(factorize(A))

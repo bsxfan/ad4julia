@@ -27,7 +27,7 @@ function update!{E<:Number,F<:Number}(d::E,D::Array{F},S)
     # Check size and do conversions here, 
     # Then defer to specific implementations 
     G = eltype(S)
-      T = promote_type(E,F,G)
+    T = promote_type(E,F,G)
     if !accepts(D,T)
       D = convert(Array{T},D)
       d = convert(T,d)

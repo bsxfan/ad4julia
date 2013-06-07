@@ -6,7 +6,7 @@ importall Base
 using GenUtils
 
 export onevec, repvec, wrap,
-       rankone, rowmat, colmat, reprows, repcols,
+       rankone, rowmat, colmat, reprow, repcol, repel, onemat,
        diagmat,
        blocksparse,
        update! ,
@@ -225,11 +225,15 @@ rowmat(row::Vector) = reshape(row,1,length(row))
 colmat{E}(col::CVec{E}) = rankone(col,repvec(1,one(E)))
 colmat(col::Vector) = reshape(col,length(col),1)
 
-reprows{E}(m::Int,row::AnyVec{E}) = rankone(repvec(m,one(E)),row)
-reprows(m::Int,row::Matrix) = length(row)!=max(size(row))?error("matrix too fat"):reprows(m,vec(row))
+reprow{E}(m::Int,row::AnyVec{E}) = rankone(repvec(m,one(E)),row)
+reprow(m::Int,row::Matrix) = length(row)!=max(size(row))?error("matrix too fat"):reprow(m,vec(row))
 
-repcols{E}(col::AnyVec{E},n::Int) = rankone(col,repvec(n,one(E)))
-reprows(col::Matrix,n::Int) = length(col)!=max(size(col))?error("matrix too fat"):repcols(vec(col),1)
+repcol{E}(col::AnyVec{E},n::Int) = rankone(col,repvec(n,one(E)))
+repcol(col::Matrix,n::Int) = length(col)!=max(size(col))?error("matrix too fat"):repcol(vec(col),n)
+
+repel(m::Int,n::Int, e::Number) = rankone(repvec(m,e),repvec(n,one(e)))
+
+onemat(m::Int, n::Int, e::Number) = rankone(onevec(m,))
 
 sum(A::RankOne) = sum(A.col)*sum(A.row)
 function sum{M,N}(A::RankOne,i::Int)
@@ -323,15 +327,19 @@ immutable BlockSparse{M,N,E,P,Q,R,S} <: CMat{M,N,E}
     block::Matrix{E}
 end
 typealias IRC Union(Int,Range1,Colon)
-function blocksparse{E}(sz::(Int,Int),at::(IRC,IRC),block::Matrix{E}) 
+function blocksparse{E}(sz::(Int,Int),at::(IRC,IRC),block::Array{E}) 
   at = map( i->isa(at[i],Colon)?(1:sz[i]):at[i], (1,2) ) #expand colons to ranges
-  if map(length,at) != size(block) error("block does not fit") end 
+  #if map(length,at) != size(block) error("block does not fit") end 
+  block = reshape(block,map(length,at)) # will crash here is it doesn't fit
   M,N = sz; P,Q = map(first,at); R,S = map(last,at) 
   if P<1 || Q<1 || R>M || S>N error("index out of range") end 
   if P==R && Q==1 && S==N return rankone(onevec(M,P),block) end  # single non-zero row
   if Q==S && P==1 && R==M return rankone(block,onevec(N,Q)) end # single non-zero column
   return BlockSparse{M,N,E,P,Q,R,S}(block)
 end
+
+blocksparse(sz::(Int,Int),at::(IRC,IRC),block::Number) = blocksparse(sz,at,[block])
+
 
 transpose{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S}) = BlockSparse{N,M,E,Q,P,S,R}(B.block.')
 sum(B::BlockSparse) = sum(B.block)
