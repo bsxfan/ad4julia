@@ -131,13 +131,15 @@ end
 function setindex!(D::RadNum,S::RadNum,ii...) # no new node is made, we modify the existing one
     Ss, Sn = rd(S)
     setindex!(D.st,Ss,ii...)
-    D.nd.bp = G -> backprop(Sn,getindex(G,ii...)) + D.nd.bp(setindex!(G,0,ii...))
+    oldbp = D.nd.bp
+    D.nd.bp = G -> backprop(Sn,getindex(G,ii...)) + oldbp(setindex!(G,0,ii...))
     return D
 end
 
 function setindex!(D::RadNum,S,ii...) # no new node is made, we modify the existing one
     setindex!(D.st,S,ii...)
-    D.nd.bp = G -> D.nd.bp(setindex!(G,0,ii...))
+    oldbp = D.nd.bp
+    D.nd.bp = G -> oldbp(setindex!(G,0,ii...))
     return D
 end    
 
@@ -271,9 +273,34 @@ end
         radnum(s, back ) 
     end
 
+
+    diag(X::RadNum) = ($unpackX;
+         radnum(diag(Xs), G->backprop(Xn, diagmat(G)) ) 
+        )
+
+    diagm(X::RadNum) = ($unpackX;
+         radnum(diagm(Xs), G->backprop(Xn, diag(G)) ) 
+        )
+
+
+
 end
 
-
+#################### scalar function library ##########################################
+for (F,dFdX) in {
+    ( :exp,        :Y                    ),
+    ( :log,        :(1./X)               ),
+    ( :log1p,      :(1./(X+1))           ),
+    ( :sin,        :(cos(X))             ),
+    ( :cos,        :(-sin(X))            ),
+    }
+    @eval begin
+        $F(R::RadNum) = ( (X,Xn) = rd(R);
+            Y = $F(X);
+            radnum( Y,G->backprop(Xn,G.*$dFdX) ) 
+            )
+    end
+end
 
 end # module
 
