@@ -8,7 +8,8 @@ export eq,eqsize,eqlength,
        argumentsmatch,
        @elapsedloop,
        promote_eltype, accepts, isscalar,
-       randw
+       randw,
+       max1,max2, logsumexp
 
 ######### Patches #####################################
 # fixed: https://github.com/JuliaLang/julia/issues/3202
@@ -152,6 +153,52 @@ macro elapsedloop(n,ex)
 end
 
 ########################################################
+
+max1{T}(A::Matrix{T})=(
+    (m,n) = size(A); @assert m>0 && n>0;
+    s = Array(T,n);
+    for j=1:n 
+        t=A[1,j]
+        for i=2:m e = A[i,j]; if e>t t = e end end 
+        s[j] = t 
+    end; 
+    reshape(s,1,n) 
+)
+
+max2(A::Matrix)=(
+    (m,n)=size(A); @assert m>0 && n>0;
+    s = A[:,1];
+    for j=2:n, i=1:m 
+      si = s[i]; e = A[i,j]
+      if e > si s[i] = e end
+    end;
+    reshape(s,m,1)
+)
+
+########################################################
+
+
+function logsumexp{E}(X::Matrix{E})
+# Mathematically the same as y=log(sum(exp(x),1)), 
+# but guards against numerical overflow of exp(x).
+    m,n = size(X)
+    y = Array(E,n)
+    for j=1:n
+        mx = X[1,j]
+        for i=2:m e = X[i,j]; if e>mx mx = e end end
+        s = 0 
+        for i=1:m s += exp(X[i,j]-mx) end
+        y[j] = mx + log(s);
+    end
+    return reshape(y,1,n)
+end
+
+
+
+
+
+##########################################################
+
 
 
 end

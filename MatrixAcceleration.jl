@@ -124,7 +124,7 @@ sum2{T}(A::Matrix{T})=(
     (m,n)=size(A);
     s = zeros(T,m);
     for j=1:n, i=1:m s[i] += A[i,j] end;
-    s
+    reshape(s,m,1)
 )
 
 sum{T<:BlasFloat}(A::Matrix{T},i::Int) = (

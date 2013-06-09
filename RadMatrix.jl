@@ -1,6 +1,6 @@
 module RadMatrix
 
-using CustomMatrix
+using CustomMatrix, GenUtils
 
 importall Base
 export RadNum,  RadNode, bpLeaf, #types
@@ -343,6 +343,10 @@ for (F,dFdX) in {
             )
     end
 end
+
+
+include("radmatrix/customlib.jl")
+
 
 end # module
 
