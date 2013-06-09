@@ -364,6 +364,49 @@ function custom_update!{M,N,E,P,Q,R,S}(d::Number,D::Matrix,B::BlockSparse{M,N,E,
     return D
 end
 
+##
+
+# immutable Embedding{M,N,E} <: CMat{M,N,E}
+#     block::Matrix{E}
+# end
+# typealias IRC Union(Int,Range1,Colon)
+# function blocksparse{E}(sz::(Int,Int),at::(IRC,IRC),block::Array{E}) 
+#   at = map( i->isa(at[i],Colon)?(1:sz[i]):at[i], (1,2) ) #expand colons to ranges
+#   #if map(length,at) != size(block) error("block does not fit") end 
+#   block = reshape(block,map(length,at)) # will crash here is it doesn't fit
+#   M,N = sz; P,Q = map(first,at); R,S = map(last,at) 
+#   if P<1 || Q<1 || R>M || S>N error("index out of range") end 
+#   if P==R && Q==1 && S==N return rankone(onevec(M,P),block) end  # single non-zero row
+#   if Q==S && P==1 && R==M return rankone(block,onevec(N,Q)) end # single non-zero column
+#   return BlockSparse{M,N,E,P,Q,R,S}(block)
+# end
+
+# blocksparse(sz::(Int,Int),at::(IRC,IRC),block::Number) = blocksparse(sz,at,[block])
+
+
+# transpose{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S}) = BlockSparse{N,M,E,Q,P,S,R}(B.block.')
+# sum(B::BlockSparse) = sum(B.block)
+# function sum{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int) 
+#     if i==1 return full(BlockSparse{1,N,E,1,Q,1,S}(sum(B.block,i))) end
+#     if i==2 return full(BlockSparse{M,1,E,P,1,R,1}(sum(B.block,i))) end
+# end
+
+# isdense(::BlockSparse) = false
+
+# getindex{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int,j::Int) =
+#   (P<=i<=R && Q<=j<=S) ? B.block[i-P+1,j-Q+1] : 
+#   (1<=i<=M&&1<=j<=N)   ? zero(E) : 
+#                          error("index out of bounds") 
+
+# function custom_update!{M,N,E,P,Q,R,S}(d::Number,D::Matrix,B::BlockSparse{M,N,E,P,Q,R,S})
+#     block = B.block;
+#     ii = P:R; jj = Q:S; P1 = P-1; Q1 = Q-1;
+#     for j in jj, i in ii
+#       D[i,j] = d*D[i,j] + block[i-P1,j-Q1] 
+#     end
+#     return D
+# end
+
 
 
 end

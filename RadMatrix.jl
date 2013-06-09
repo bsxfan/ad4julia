@@ -198,6 +198,8 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             radnum(Z, back) 
             )
 
+        (.\)(X::$L, Y::$R) = Y ./ X
+
         (*)(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
             $unpackXY
             if     both back = G -> backprop(Xn,G*Ys.') + backprop(Yn,Xs.'*G)
@@ -205,6 +207,31 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             elseif radY back = G ->                       backprop(Yn,Xs.'*G) end
         	radnum(Xs * Ys, back ) 
         end
+
+        A_mul_Bt(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
+            $unpackXY
+            if     both back = G -> backprop(Xn,G*Ys) + backprop(Yn,G.'*Xs)
+            elseif radX back = G -> backprop(Xn,G*Ys) 
+            elseif radY back = G ->                       backprop(Yn,G.'*Xs) end
+            radnum(Xs * Ys.', back ) 
+        end
+
+        At_mul_B(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
+            $unpackXY
+            if     both back = G -> backprop(Xn,Ys*G.') + backprop(Yn,Xs*G)
+            elseif radX back = G -> backprop(Xn,Ys*G.') 
+            elseif radY back = G ->                       backprop(Yn,Xs*G) end
+            radnum(Xs.' * Ys, back ) 
+        end
+
+        At_mul_Bt(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return X .* Y else
+            $unpackXY
+            if     both back = G -> backprop(Xn,Ys.'*G.') + backprop(Yn,G.'*Xs.')
+            elseif radX back = G -> backprop(Xn,Ys.'*G.') 
+            elseif radY back = G ->                       backprop(Yn,Ys.'*G.') end
+            radnum(Xs.' * Ys.', back ) 
+        end
+
 
         (\)(X::$L, Y::$R) = if ndims(X)==0 || ndims(Y)==0 return Y ./ X else
             $unpackXY
@@ -230,6 +257,20 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
         #At_mul_B
         #A_mul_Bt
         #At_mul_Bt
+
+
+        hcat(X::$L, Y::$R) = ( $unpackXY;
+            Z = [Xs Ys];
+            n = size(Xs,2); k = size(Ys,2);
+            radnum(Z, G -> backprop(Xn,G[:,1:n]) + backprop(Yn,G[:,n+1:n+k]) ) 
+            ) 
+
+        vcat(X::$L, Y::$R) = ( $unpackXY;
+            Z = [Xs;Ys];
+            m = size(Xs,1); k = size(Ys,1);
+            radnum(Z, G -> backprop(Xn,G[1:m,:]) + backprop(Yn,G[m+1:m+k,:]) ) 
+            ) 
+
     end
 end
 
@@ -293,6 +334,7 @@ for (F,dFdX) in {
     ( :log1p,      :(1./(X+1))           ),
     ( :sin,        :(cos(X))             ),
     ( :cos,        :(-sin(X))            ),
+    ( :tanh,       :(1-Y.*Y)              ),
     }
     @eval begin
         $F(R::RadNum) = ( (X,Xn) = rd(R);
