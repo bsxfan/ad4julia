@@ -182,12 +182,12 @@ dott(x::Vector, y::Vector) = (reshape(x,1,length(x))*y)[1]
 dott{T<:Real}(x::Vector{T}, y::Vector{T}) = dot(x,y)
 
 
-function logsumexp(X::Matrix)
+function logsumexp(X)
 # Mathematically the same as y=log(sum(exp(x),1)), 
 # but guards against numerical overflow of exp(x).
     m,n = size(X)
     z = log(one(X[1]))
-    y = Array(eltype(z),n)
+    y = Array(typeof(z),n)
     for j=1:n
         mx = real(X[1,j])
         for i=2:m e = real(X[i,j]); if e>mx mx = e end end
