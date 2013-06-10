@@ -9,7 +9,7 @@ export eq,eqsize,eqlength,
        @elapsedloop,
        promote_eltype, accepts, isscalar,
        randw,
-       max1,max2, logsumexp
+       max1,max2, dott, logsumexp
 
 ######### Patches #####################################
 # fixed: https://github.com/JuliaLang/julia/issues/3202
@@ -177,24 +177,26 @@ max2(A::Matrix)=(
 
 ########################################################
 
+# dot without conjugation
+dott(x::Vector, y::Vector) = (reshape(x,1,length(x))*y)[1]
+dott{T<:Real}(x::Vector{T}, y::Vector{T}) = dot(x,y)
 
-function logsumexp{E}(X::Matrix{E})
+
+function logsumexp(X::Matrix)
 # Mathematically the same as y=log(sum(exp(x),1)), 
 # but guards against numerical overflow of exp(x).
     m,n = size(X)
-    y = Array(E,n)
+    z = log(one(X[1]))
+    y = Array(eltype(z),n)
     for j=1:n
-        mx = X[1,j]
-        for i=2:m e = X[i,j]; if e>mx mx = e end end
-        s = 0 
+        mx = real(X[1,j])
+        for i=2:m e = real(X[i,j]); if e>mx mx = e end end
+        s = z
         for i=1:m s += exp(X[i,j]-mx) end
         y[j] = mx + log(s);
     end
     return reshape(y,1,n)
 end
-
-
-
 
 
 ##########################################################

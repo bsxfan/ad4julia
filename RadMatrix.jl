@@ -8,6 +8,7 @@ export RadNum,  RadNode, bpLeaf, #types
        compare_jacobians,rad_jacobians,complexstep_jacobians          
        
 import Base.LinAlg: BLAS, LAPACK, BlasFloat, LU
+import GenUtils: dott, logsumexp
 
 include("radmatrix/lux.jl") #extend capabilities of LU factorization
 
@@ -33,7 +34,7 @@ israd(X) = isa(X,RadNum)
 
 # defer several functions to standard part
 # derivatives play no role here
-for fun in {:size,:ndims,:endof,:length,:eltype,:start,:isscalar}
+for fun in {:size,:ndims,:endof,:length,:start,:isscalar}
     @eval begin
         ($fun)(R::RadNum) = ($fun)(R.st)
     end
@@ -43,6 +44,9 @@ for fun in {:size,:next,:done}
         ($fun)(R::RadNum,args...) = ($fun)(R.st,args...)
     end
 end
+isless(r::RadNum,s::RadNum) = isless(r.st,s.st)
+isless(r::RadNum,s) = isless(r.st,s)
+isless(r,s::RadNum) = isless(r,s.st)
 
 
 # reads value, counts references
@@ -100,6 +104,8 @@ include("radmatrix/testrad.jl")
 
 #################### matrix wiring #######################################
 vec(X::RadNum) = reshape(X,length(X))
+eltype{T<:Number}(::RadNum{Array{T}}) = RadNum{T}
+zeros{T<:Number}(::Type{RadNum{T}},sz...) = radnum(zeros(T,sz...),G->0)
 
 unpackX = :((Xs,Xn) = rd(X))
 @eval begin
@@ -120,7 +126,7 @@ unpackX = :((Xs,Xn) = rd(X))
     #     G->backprop(Xn,onevec(k,i,G))                           )
     # )
 
-    fill(X::RadNum,ii...) = ($unpackX;
+    fill{T<:Number}(X::RadNum{T},ii...) = ($unpackX;
         radnum(fill(Xs,ii...), G-> backprop(Xn,sum(G)))
         )
 
@@ -245,18 +251,13 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
         (/)(X::$L, Y::$R) = (Y.'\X.').' #'  can be made more efficient
 
 
-        dot(X::$L, Y::$R) = ( $unpackXY;
+        dott(X::$L, Y::$R) = ( $unpackXY;
             if     both back = G -> backprop(Xn,G*Ys) + backprop(Yn,Xs*G)
             elseif radX back = G -> backprop(Xn,G*Ys) 
-            elseif radY back = G ->                       backprop(Yn,Xs*G) end;
-            radnum(dot(Xs,Ys), back ) 
+            elseif radY back = G ->                     backprop(Yn,Xs*G) end;
+            radnum(dott(Xs,Ys), back ) 
            ) 
 
-
-
-        #At_mul_B
-        #A_mul_Bt
-        #At_mul_Bt
 
 
         hcat(X::$L, Y::$R) = ( $unpackXY;
