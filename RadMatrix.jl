@@ -28,9 +28,22 @@ immutable RadNum{B}
             RadNum(X::B,bp::Function) = new(X,RadNode{B}(zero(X),0,0,bp)) 
 end
 bpLeaf(G)=1 # input nodes do not backpropate further
+bpConst(G)=0 # constant input 
 radnum{B}(X::B,bp::Function=bpLeaf) = RadNum{B}(X,bp)  
 
+one(R::RadNum) = radnum(one(R.st),bpConst)
+zero(R::RadNum) = radnum(zero(R.st),bpConst)
+one{T}(::Type{RadNum{T}}) = radnum(one(T),bpConst)
+zero{T}(::Type{RadNum{T}}) = radnum(zero(T),bpConst)
+
+
 israd(X) = isa(X,RadNum)
+
+show(io::IO, R::RadNum) = ( println(io,summary(R),": fanout=$(R.nd.rcount), st =");show(io,R.st) )
+
+
+promote_rule{T<:Number,R<:Number}(::Type{RadNum{T}}, ::Type{R}) = RadNum{promote_type(T,R)}
+promote_rule{T<:Number,R<:Number}(::Type{RadNum{T}}, ::RadNum{R}) = RadNum{promote_type(T,R)}
 
 # defer several functions to standard part
 # derivatives play no role here
@@ -44,9 +57,9 @@ for fun in {:size,:next,:done}
         ($fun)(R::RadNum,args...) = ($fun)(R.st,args...)
     end
 end
-isless(r::RadNum,s::RadNum) = isless(r.st,s.st)
-isless(r::RadNum,s) = isless(r.st,s)
-isless(r,s::RadNum) = isless(r,s.st)
+max{S<:Real,T<:Real}(r::RadNum{S},s::RadNum{T}) = r.st>=s.st?r:s
+max{S<:Real,T<:Real}(r::RadNum{S},s::T) = r.st>=s?r:s
+max{S<:Real,T<:Real}(r::S,s::RadNum{T}) = r>=s.st?r:s
 
 
 # reads value, counts references
@@ -104,8 +117,14 @@ include("radmatrix/testrad.jl")
 
 #################### matrix wiring #######################################
 vec(X::RadNum) = reshape(X,length(X))
-eltype{T<:Number}(::RadNum{Array{T}}) = RadNum{T}
-zeros{T<:Number}(::Type{RadNum{T}},sz...) = radnum(zeros(T,sz...),G->0)
+eltype{A<:Array}(R::RadNum{A}) = RadNum{eltype(R.st)}
+eltype{T<:Number}(::RadNum{T}) = RadNum{T}
+zeros{T<:Number}(::Type{RadNum{T}},sz...) = radnum(zeros(T,sz...),bpConst)
+ones{T<:Number}(::Type{RadNum{T}},sz...) = radnum(ones(T,sz...),bpConst)
+Array{T<:Number}(::Type{RadNum{T}},m::Int) = radnum(Array(T,m),bpConst)
+Array{T<:Number}(::Type{RadNum{T}},m::Int,n::Int) = radnum(Array(T,m,n),bpConst)
+Array{T<:Number}(::Type{RadNum{T}},sz::NTuple{2,Int}) = radnum(Array(T,sz),bpConst)
+#getindexT<:Number}(::Type{RadNum{T}},stuff...) = radnum(T[stuff...],bpConst)
 
 unpackX = :((Xs,Xn) = rd(X))
 @eval begin
@@ -152,7 +171,9 @@ end
 
 #setindex!(D,S::RadNum,ii...) = error("cannot write $(typeof(S)) into $(typeof(D))")
 
-
+real{T<:Real}(R::RadNum{T}) = R
+imag{T<:Real}(R::RadNum{T}) = zero(R)
+conj{T<:Real}(R::RadNum{T}) = R
 
 
 #################### unary operator library ##############################
@@ -160,11 +181,28 @@ end
     transpose(X::RadNum) = ( $unpackX;
         radnum(Xs.',G -> backprop(Xn, G.')) )
 
+    ctranspose(X::RadNum) = ( $unpackX;
+        radnum(Xs',G -> backprop(Xn, G')) )
+
     (-)(X::RadNum) = ( $unpackX;
         radnum(-Xs,G -> backprop(Xn, -G)) ) 
 
     (+)(X::RadNum) = ( $unpackX;
         radnum(+Xs,G -> backprop(Xn, +G)) )
+
+
+    real{T<:Complex}(X::RadNum{T}) = ( $unpackX;
+        radnum(real(Xs),G -> backprop(Xn, G))
+        )
+
+    imag{T<:Complex}(X::RadNum{T}) = ( $unpackX;
+        radnum(imag(Xs),G -> backprop(Xn, complex(0,G)))
+        )
+
+    conj{T<:Complex}(X::RadNum{T}) = ( $unpackX;
+        radnum(conj(Xs),G -> backprop(Xn, conj(G)))
+        )
+
 end
 
 #################### binary operator library ##############################
@@ -271,6 +309,9 @@ for (L,R) in { (:RadNum,:RadNum), (:RadNum,:Any), (:Any,:RadNum) }
             m = size(Xs,1); k = size(Ys,1);
             radnum(Z, G -> backprop(Xn,G[1:m,:]) + backprop(Yn,G[m+1:m+k,:]) ) 
             ) 
+
+
+
 
     end
 end

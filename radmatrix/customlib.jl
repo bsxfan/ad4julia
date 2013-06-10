@@ -44,21 +44,12 @@ end
 
 
 
-# function logsumexp(R::RadNum)
-#     X,Xn = rd(R)
-#     m,n = size(X)
-#     y = Array(eltype(X),n)
-#     for j=1:n
-#         mx = real(X[1,j])
-#         for i=2:m e = real(X[i,j]); if e>mx mx = e end end
-#         s = 0.0 
-#         for i=1:m s += exp(X[i,j]-mx) end
-#         y[j] = mx + log(s);
-#     end
-#     Y = reshape(y,1,n)
-#     back(G) = backprop(Xn,G.*exp(X.-(Y)))
-#     return radnum(Y,back)
-# end
+function logsumexp{M<:Matrix}(R::RadNum{M})
+    X,Xn = rd(R)
+    Y = logsumexp(X)
+    back(G) = backprop(Xn,G.*exp(X.-(Y)))
+    return radnum(Y,back)
+end
 
 ###################################################################
 

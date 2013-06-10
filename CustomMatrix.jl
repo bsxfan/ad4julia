@@ -5,11 +5,11 @@ importall Base
 
 using GenUtils
 
-export onevec, repvec, wrap,
-       rankone, rowmat, colmat, reprow, repcol, repel, onemat,
+export onevec, repvec, wrap, zerovec, aszeros,
+       rankone, rowmat, colmat, reprow, repcol, repel, onemat, zeromat,
        diagmat,
        blocksparse,
-       update! ,
+       update! , size2,
        procrustean_update!
 
 include("custommatrix/matrixUpdating.jl") #declares update and procrustean_update  
@@ -125,6 +125,19 @@ typealias _WVec{E,L} WVec{L,E}
 typealias _RepVec{E,L} RepVec{L,E}
 typealias DenseVec{E} Union(_WVec{E},_RepVec{E},Vector{E}) # [] can be used after size checks
 
+
+###
+
+immutable ZeroVec{L} <: CVec{L,Int}
+end
+zerovec(len::Int) = ZeroVec{len}()
+custom_update!(d::Number,D::Array,S::ZeroVec) = (
+  if d==1 return D end;
+  if d==0 fill!(D,0); return D end;
+  for i=1:length(D) D[i] *= d end;
+  return D 
+)
+isdense(::ZeroVec) = false
 
 ###
 
@@ -364,7 +377,28 @@ function custom_update!{M,N,E,P,Q,R,S}(d::Number,D::Matrix,B::BlockSparse{M,N,E,
     return D
 end
 
-##
+###
+
+immutable ZeroMat{M,N} <: CMat{M,N,Int}
+end
+isdense(::ZeroMat) = false
+zeromat(m::Int,n::Int) = ZeroMat{m,n}()
+custom_update!(d::Number,D::Array,S::ZeroMat) = (
+  if d==1 return D end;
+  if d==0 fill!(D,0); return D end;
+  for i=1:length(D) D[i] *= d end;
+  return D 
+)
+function aszeros(X)
+  if ndims(X)==0 return 0                   end
+  if ndims(X)==1 return zerovec(length(X))  end
+  if ndims(X)==2 return zeromat(size(X)...) end 
+  error("illegal ndims(X)==$(ndims(X)), must be 0, 1, or 2")  
+end
+###
+
+
+###
 
 # immutable Embedding{M,N,E} <: CMat{M,N,E}
 #     block::Matrix{E}

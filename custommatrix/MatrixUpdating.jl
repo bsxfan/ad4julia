@@ -20,7 +20,7 @@
 # -- does not have to check types, but should succeed if "types allow".
 #
 
-size2(A) = size(A,1), size(A,2)
+size2(A) = (m = size(A,1); n = size(A,2); @assert m*n==length(A); (m,n) )
 
 update!(d::Number,D::Number,S::Number) = d*D+S
 function update!{E<:Number,F<:Number}(d::E,D::Array{F},S)

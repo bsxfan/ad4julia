@@ -64,8 +64,8 @@ accepts{D<:Number,S<:Number}(A::Array{D},::S) = willconvert(D,S)
 
 
 ############### precondition checking #######################
-check(ok::Bool, msg="assertion failed") = ok?true:error(msg)
-prevent(notok::Bool, msg="assertion failed") = notok?error(msg):true
+check(ok::Bool, msg="precondition failed") = ok?true:error(msg)
+prevent(notok::Bool, msg="precondition failed") = notok?error(msg):true
 # Follow check or prevent by &&
 #  - for assignment, use brackets: check(condition)&&(x=5), or check(condition)&&(x=5;true)
 
@@ -182,16 +182,15 @@ dott(x::Vector, y::Vector) = (reshape(x,1,length(x))*y)[1]
 dott{T<:Real}(x::Vector{T}, y::Vector{T}) = dot(x,y)
 
 
-function logsumexp(X)
+function logsumexp(X::Matrix)
 # Mathematically the same as y=log(sum(exp(x),1)), 
 # but guards against numerical overflow of exp(x).
     m,n = size(X)
-    z = log(one(X[1]))
-    y = Array(typeof(z),n)
+    y = Array(promote_type(eltype(X),Float64),n)
     for j=1:n
         mx = real(X[1,j])
         for i=2:m e = real(X[i,j]); if e>mx mx = e end end
-        s = z
+        s = zero(eltype(y))
         for i=1:m s += exp(X[i,j]-mx) end
         y[j] = mx + log(s);
     end
