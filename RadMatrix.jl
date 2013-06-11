@@ -134,16 +134,13 @@ unpackX = :((Xs,Xn) = rd(X))
     ) 
 
 
-    #default, may be wasteful for large X
+    #Note: embed() for matrices could benefit from some more work to handle some indexing types
+    #more efficiently. For vectors it should already be efficient.
     getindex(X::RadNum,ii...) = ($unpackX; sz = size(Xs); radnum(
         getindex(Xs,ii...),
-        G->(B=zero(Xs);setindex!(B,G,ii...);backprop(Xn,B))     )
+        G->backprop(Xn,embed(sz,G,ii...))     )
     )
 
-    # getindex(X::RadNum,i::Int) = ($unpackX; k = length(Xs); radnum(
-    #     Xs[i],
-    #     G->backprop(Xn,onevec(k,i,G))                           )
-    # )
 
     fill{T<:Number}(X::RadNum{T},ii...) = ($unpackX;
         radnum(fill(Xs,ii...), G-> backprop(Xn,sum(G)))

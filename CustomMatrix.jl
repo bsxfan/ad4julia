@@ -5,7 +5,7 @@ importall Base
 
 using GenUtils
 
-export onevec, repvec, wrap, zerovec, aszeros,
+export onevec, repvec, wrap, zerovec, aszeros, embed,
        rankone, rowmat, colmat, reprow, repcol, repel, onemat, zeromat,
        diagmat,
        blocksparse,
@@ -38,8 +38,7 @@ convert{T<:CArray}(::Type{T},A::T) = A #trivial case
 
 summary(X::CArray) = string(Base.dims2string(size(X))," ",typeof(X)) 
 show(io::IO,X::CArray) = ( println(io,summary(X),"->"); show(full(X)) )
-full{E}(X::CArray{E}) = update!(0,
-                                isdense(X)?Array(E,size(X)):zeros(E,size(X)),
+full{E}(X::CArray{E}) = update!(isdense(X)?Array(E,size(X)):zeros(E,size(X)),
                                 X)  
 
 
@@ -81,7 +80,7 @@ getindex(v::WVec,ii...) = getindex(v.v,ii...) # valid only for nzindexrange
 
 sum(v::WVec) = sum(v.v)
 
-custom_update!(d::Number,D::Array,S::WVec) = update!(s,D,S.v)
+custom_update!(D::Array,S::WVec) = update!(D,S.v)
 
 ###
 
@@ -99,7 +98,7 @@ nzindexrange{L,E,P}(v::OneVec{L,E,P}) = P
 getindex(v::OneVec,ii...) = v.s # valid only for nzindexrange
 
 sum(v::OneVec) = v.s
-custom_update!{L,E,P}(d::Number,D::Array,S::OneVec{L,E,P}) = (D[P] = d*D[P] + S.s; D)
+custom_update!{L,E,P}(D::Array,S::OneVec{L,E,P}) = (D[P] += S.s; D)
 
 ###
 
@@ -118,7 +117,7 @@ nzindexrange{L}(v::RepVec{L}) = 1:L
 getindex(v::RepVec,ii...) = v.s # valid only for nzindexrange
 
 sum{L}(v::RepVec{L}) = v.s*L
-custom_update!(d::Number,D::Array,S::RepVec) = update!(d,D,S.s)
+custom_update!(D::Array,S::RepVec) = update!(D,S.s)
 
 ####
 typealias _WVec{E,L} WVec{L,E}
@@ -131,14 +130,27 @@ typealias DenseVec{E} Union(_WVec{E},_RepVec{E},Vector{E}) # [] can be used afte
 immutable ZeroVec{L} <: CVec{L,Int}
 end
 zerovec(len::Int) = ZeroVec{len}()
-custom_update!(d::Number,D::Array,S::ZeroVec) = (
-  if d==1 return D end;
-  if d==0 fill!(D,0); return D end;
-  for i=1:length(D) D[i] *= d end;
-  return D 
-)
+custom_update!(D::Array,S::ZeroVec) = D
 isdense(::ZeroVec) = false
 
+###
+immutable EmbeddedVec{L,E,D,A} <: CVec{L,E}
+  data::D
+  at:: A
+end
+EmbeddedVec{D,A}(L::Int,data::D,at::A) = EmbeddedVec{L,eltype(data),D,A}(data,at)
+isdense(::EmbeddedVec) = false
+embed(source::Vector,at) = embed(length(source),source[at],at)
+embed(sz::(Int,),data,at) = EmbeddedVec(sz...,data,at)
+custom_update!{L,E,D,A<:Int}(Dest::Array,S::EmbeddedVec{L,E,D,A}) = (Dest[S.at] += S.data; Dest)
+custom_update!{L,E,D,A}(Dest::Array,S::EmbeddedVec{L,E,D,A}) = (
+  s = 0; data = S.data; at = S.at;
+  if       eltype(A)==Int  for i in at Dest[i] += data[s+=1] end 
+    elseif eltype(A)==Bool for i=1:length(at) if at[i] Dest[i] += data[s+=1] end end 
+    else                   error("can't work with index of type $A") 
+  end;
+  Dest
+  )
 ###
 
 At_mul_B(x::CVec,y::CVec) = [dot(x,y)]
@@ -258,13 +270,13 @@ end
 
 
 
-function custom_update!(d::Number,D::Matrix,R::RankOne)
+function custom_update!(D::Matrix,R::RankOne)
     # t.b.d.: some cases could be deferred to BlasX.ger
     col = R.col; row = R.row
     ii = nzindexrange(col); jj = nzindexrange(row)
     for j in jj
       rj = row[j] 
- 	    for i in ii D[i,j] = d*D[i,j] + col[i]*rj end
+ 	    for i in ii D[i,j] = D[i,j] + col[i]*rj end
     end
     return D
 end
@@ -315,11 +327,11 @@ sum(A::DiagMat) = sum(A.d)
 sum{N}(A::DiagMat{N},i::Int) = 1<=i<=2?(i=1?reshape(diag(A),N,1):reshape(diag(A),1,N)):full(A) 
 diag(A::DiagMat) = full(A.d) 
 
-function custom_update!(d::Number,D::Matrix,R::DiagMat)
+function custom_update!(D::Matrix,R::DiagMat)
     dg = R.d;
     ii = nzindexrange(dg)
     for i in ii
-      D[i,i] = d*D[i,i] + dg[i] 
+      D[i,i] = D[i,i] + dg[i] 
     end
     return D
 end
@@ -368,11 +380,11 @@ getindex{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int,j::Int) =
   (1<=i<=M&&1<=j<=N)   ? zero(E) : 
                          error("index out of bounds") 
 
-function custom_update!{M,N,E,P,Q,R,S}(d::Number,D::Matrix,B::BlockSparse{M,N,E,P,Q,R,S})
+function custom_update!{M,N,E,P,Q,R,S}(D::Matrix,B::BlockSparse{M,N,E,P,Q,R,S})
     block = B.block;
     ii = P:R; jj = Q:S; P1 = P-1; Q1 = Q-1;
     for j in jj, i in ii
-      D[i,j] = d*D[i,j] + block[i-P1,j-Q1] 
+      D[i,j] = D[i,j] + block[i-P1,j-Q1] 
     end
     return D
 end
@@ -383,12 +395,8 @@ immutable ZeroMat{M,N} <: CMat{M,N,Int}
 end
 isdense(::ZeroMat) = false
 zeromat(m::Int,n::Int) = ZeroMat{m,n}()
-custom_update!(d::Number,D::Array,S::ZeroMat) = (
-  if d==1 return D end;
-  if d==0 fill!(D,0); return D end;
-  for i=1:length(D) D[i] *= d end;
-  return D 
-)
+custom_update!(D::Array,S::ZeroMat) = D
+
 function aszeros(X)
   if ndims(X)==0 return 0                   end
   if ndims(X)==1 return zerovec(length(X))  end
@@ -399,47 +407,16 @@ end
 
 
 ###
-
-# immutable Embedding{M,N,E} <: CMat{M,N,E}
-#     block::Matrix{E}
-# end
-# typealias IRC Union(Int,Range1,Colon)
-# function blocksparse{E}(sz::(Int,Int),at::(IRC,IRC),block::Array{E}) 
-#   at = map( i->isa(at[i],Colon)?(1:sz[i]):at[i], (1,2) ) #expand colons to ranges
-#   #if map(length,at) != size(block) error("block does not fit") end 
-#   block = reshape(block,map(length,at)) # will crash here is it doesn't fit
-#   M,N = sz; P,Q = map(first,at); R,S = map(last,at) 
-#   if P<1 || Q<1 || R>M || S>N error("index out of range") end 
-#   if P==R && Q==1 && S==N return rankone(onevec(M,P),block) end  # single non-zero row
-#   if Q==S && P==1 && R==M return rankone(block,onevec(N,Q)) end # single non-zero column
-#   return BlockSparse{M,N,E,P,Q,R,S}(block)
-# end
-
-# blocksparse(sz::(Int,Int),at::(IRC,IRC),block::Number) = blocksparse(sz,at,[block])
-
-
-# transpose{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S}) = BlockSparse{N,M,E,Q,P,S,R}(B.block.')
-# sum(B::BlockSparse) = sum(B.block)
-# function sum{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int) 
-#     if i==1 return full(BlockSparse{1,N,E,1,Q,1,S}(sum(B.block,i))) end
-#     if i==2 return full(BlockSparse{M,1,E,P,1,R,1}(sum(B.block,i))) end
-# end
-
-# isdense(::BlockSparse) = false
-
-# getindex{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int,j::Int) =
-#   (P<=i<=R && Q<=j<=S) ? B.block[i-P+1,j-Q+1] : 
-#   (1<=i<=M&&1<=j<=N)   ? zero(E) : 
-#                          error("index out of bounds") 
-
-# function custom_update!{M,N,E,P,Q,R,S}(d::Number,D::Matrix,B::BlockSparse{M,N,E,P,Q,R,S})
-#     block = B.block;
-#     ii = P:R; jj = Q:S; P1 = P-1; Q1 = Q-1;
-#     for j in jj, i in ii
-#       D[i,j] = d*D[i,j] + block[i-P1,j-Q1] 
-#     end
-#     return D
-# end
+immutable EmbeddedMat{M,N,E,D,A} <: CMat{M,N,E}
+  data::D
+  at:: A
+end
+EmbeddedMat{D,A}(M::Int,N::Int,data::D,at::A) = EmbeddedMat{M,N,eltype(data),D,A}(data,at)
+isdense(::EmbeddedMat) = false
+embed(source::Matrix,at...) = embed(size(source),source[at...],at...)
+embed(sz::(Int,Int),data,at...) = EmbeddedMat(sz...,data,at)
+custom_update!(D::Array,S::EmbeddedMat) = (D[S.at...] += S.data; D)
+###
 
 
 
