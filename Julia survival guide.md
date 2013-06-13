@@ -4,7 +4,7 @@
 - Julia does not have a mechanism to clear variables, constants, types , functions. If you are using Julia from the REPL (the console), it is easiest to just restart the REPL when you want to clear stuff.
 
 ## Setting up LOAD_PATH
-- On startup, the REPL looks for `.juliarc.jl` and runs it. This is a good place to set up `LOAD_PATH`, and maybe load some modules that you always use. The file `.juliarc.jl` is in your home directory in Linux and in Windows at: `C:\\Users\\some_user\\AppData\\Roaming\\julia\\.juliarc.jl`.
+- On startup, the REPL looks for `.juliarc.jl` and runs it. This is a good place to set up `LOAD_PATH`, and maybe load some modules that you always use. The file `.juliarc.jl` is in your home directory in Linux and in Windows at: `C:\Users\some_user\AppData\Roaming\julia\.juliarc.jl`.
 - My `.juliarc.jl` contains:
 -
     appendloadpath(path) = (push!(LOAD_PATH,path);println("--> appending \"$(path)\") to LOAD_PATH"))
