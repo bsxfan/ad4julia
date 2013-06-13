@@ -111,10 +111,6 @@ function radeval(f::Function,
 end
 
 
-include("radmatrix/testrad.jl")
-
-
-
 #################### matrix wiring #######################################
 vec(X::RadNum) = reshape(X,length(X))
 eltype{A<:Array}(R::RadNum{A}) = RadNum{eltype(R.st)}
@@ -134,11 +130,11 @@ unpackX = :((Xs,Xn) = rd(X))
     ) 
 
 
-    #Note: embed() for matrices could benefit from some more work to handle some indexing types
+    #Note: zeropad() for matrices could benefit from some more work to handle some indexing types
     #more efficiently. For vectors it should already be efficient.
     getindex(X::RadNum,ii...) = ($unpackX; sz = size(Xs); radnum(
         getindex(Xs,ii...),
-        G->backprop(Xn,embed(sz,G,ii...))     )
+        G->backprop(Xn,zeropad(sz,G,ii...))     )
     )
 
 
@@ -385,6 +381,10 @@ end
 
 
 include("radmatrix/customlib.jl")
+
+include("radmatrix/testrad.jl")
+
+include("radmatrix/radobjective.jl")
 
 
 end # module

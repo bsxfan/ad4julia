@@ -3,9 +3,11 @@ module CustomMatrix
 
 importall Base
 
-using GenUtils
+import Base.LinAlg: BlasFloat
 
-export onevec, repvec, wrap, zerovec, aszeros, embed,
+using GenUtils, BlasX
+
+export onevec, repvec, zerovec, aszeros, zeropad,
        rankone, rowmat, colmat, reprow, repcol, repel, onemat, zeromat,
        diagmat,
        blocksparse,
@@ -29,8 +31,13 @@ A_mul_Bc{E<:Real}(A,B::CArray{E}) = A_mul_Bt(A,B)
 Ac_mul_B{E<:Complex}(A::CArray{E},B) = At_mul_B(conj(A),B)
 A_mul_Bc{E<:Complex}(A,B::CArray{E}) = A_mul_Bt(A,conj(B))
 
-# converte: convert element type, trivial case 
-converte{E}(::Type{E},v::CArray{E}) = v
+# converte: convert element type
+converte{E}(::Type{E},A::CArray{E}) = A          # other cases defined below
+converte{E}(::Type{E},A::AbstractArray{E}) = A
+converte{E,F,N}(::Type{E},A::AbstractArray{F,N}) = convert(Array{E,N},A)
+
+#isdense
+isdense(::Array) = true #others defined below
 
 #convert is not wired up yet, do when necessary
 convert{T<:CArray}(::Type{T},A::T) = A #trivial case
@@ -51,7 +58,6 @@ length{L}(::CVec{L}) = L
 size{L}(::CVec{L}) = (L,)
 size{L}(::CVec{L},i::Int) = i==1?L:1
 ndims(::CVec) = 1
-wrap(v::CVec) = v
 
 typealias _CVec{E,L} CVec{L,E}
 typealias AnyVec{E} Union(_CVec{E},Vector{E})
@@ -63,24 +69,7 @@ chkdim(K::Int,L::Int) = K!=L?error("dimension mismatch"):true
 
 ###
 
-# wrapped vector, sibling of special vectors
-immutable WVec{L,E} <: CVec{L,E}
-   v:: Vector{E}
-end
-wrap{E}(v::Vector{E}) = WVec{length(v),E}(v)
-wrap(v::Matrix) = size(v,1)==1||size(v,2)==1?wrap(vec(v)):error("argument must have single row or column")
-full(v::WVec) = v.v
-isdense(::WVec) = true
-converte{L,E,F}(::Type{E},v::WVec{L,F}) = WVec{L,E}(convert(Vector{E},v.v))
-*(x::Number,v::WVec) = wrap(x*v.v)
-*(v::WVec,x::Number) = wrap(x*v.v)
-
-nzindexrange{L}(v::WVec{L}) = 1:L
-getindex(v::WVec,ii...) = getindex(v.v,ii...) # valid only for nzindexrange
-
-sum(v::WVec) = sum(v.v)
-
-custom_update!(D::Array,S::WVec) = update!(D,S.v)
+nzindexrange(v::Vector) = 1:length(v)
 
 ###
 
@@ -120,9 +109,8 @@ sum{L}(v::RepVec{L}) = v.s*L
 custom_update!(D::Array,S::RepVec) = update!(D,S.s)
 
 ####
-typealias _WVec{E,L} WVec{L,E}
 typealias _RepVec{E,L} RepVec{L,E}
-typealias DenseVec{E} Union(_WVec{E},_RepVec{E},Vector{E}) # [] can be used after size checks
+typealias DenseVec{E} Union(_RepVec{E},Vector{E}) # [] can be used after size checks
 
 
 ###
@@ -134,16 +122,16 @@ custom_update!(D::Array,S::ZeroVec) = D
 isdense(::ZeroVec) = false
 
 ###
-immutable EmbeddedVec{L,E,D,A} <: CVec{L,E}
+immutable ZeropaddedVec{L,E,D,A} <: CVec{L,E}
   data::D
   at:: A
 end
-EmbeddedVec{D,A}(L::Int,data::D,at::A) = EmbeddedVec{L,eltype(data),D,A}(data,at)
-isdense(::EmbeddedVec) = false
-embed(source::Vector,at) = embed(length(source),source[at],at)
-embed(sz::(Int,),data,at) = EmbeddedVec(sz...,data,at)
-custom_update!{L,E,D,A<:Int}(Dest::Array,S::EmbeddedVec{L,E,D,A}) = (Dest[S.at] += S.data; Dest)
-custom_update!{L,E,D,A}(Dest::Array,S::EmbeddedVec{L,E,D,A}) = (
+ZeropaddedVec{D,A}(L::Int,data::D,at::A) = ZeropaddedVec{L,eltype(data),D,A}(data,at)
+isdense(::ZeropaddedVec) = false
+zeropad(source::Vector,at) = zeropad(size(source),source[at],at)
+zeropad(sz::(Int,),data,at) = ZeropaddedVec(sz...,data,at)
+custom_update!{L,E,D,A<:Int}(Dest::Array,S::ZeropaddedVec{L,E,D,A}) = (Dest[S.at] += S.data; Dest)
+custom_update!{L,E,D,A}(Dest::Array,S::ZeropaddedVec{L,E,D,A}) = (
   s = 0; data = S.data; at = S.at;
   if       eltype(A)==Int  for i in at Dest[i] += data[s+=1] end 
     elseif eltype(A)==Bool for i=1:length(at) if at[i] Dest[i] += data[s+=1] end end 
@@ -154,52 +142,36 @@ custom_update!{L,E,D,A}(Dest::Array,S::EmbeddedVec{L,E,D,A}) = (
 ###
 
 At_mul_B(x::CVec,y::CVec) = [dot(x,y)]
-At_mul_B{L}(x::WVec{L},B::Matrix) = reshape(B.'*x.v,1,L)
 At_mul_B(x::RepVec,B::Matrix) = x.s*sum(B,1)
 At_mul_B{L,E,P}(x::OneVec{L,E,P},B::Matrix) = chkdim(x,B) && x.s*B[P,:]
 
-*(M::Matrix,x::WVec) = M*x.v
 *{L}(M::Matrix,x::RepVec{L}) = reshape(sum(M,2),L)
 *{L,E,P}(M::Matrix,x::OneVec{L,E,P}) =  chkdim(M,x) && x.s*M[:,P]
 
 ###
 
-dot{L}(x::WVec{L},y::WVec{L}) = dot(x.v,y.v)
-dot{L}(x::WVec{L},y::RepVec{L}) = sum(x.v)*y.s
-dot{L,E,P}(x::WVec{L},y::OneVec{L,E,P}) = x.v[P]*y.s
-dot(x::WVec,y::Vector) = dot(x.v,y)
 
-dot{L}(x::RepVec{L},y::WVec{L}) = dot(y,x)
 dot{L}(x::RepVec{L},y::RepVec{L}) = L*x.s*y.s
 dot{L}(x::RepVec{L},y::OneVec{L}) = x.s*y.s
 dot{L}(x::RepVec{L},y::Vector) = chkdim(x,y) && x.s*sum(y)
 
-dot{L}(x::OneVec{L},y::WVec{L}) = dot(y,x)
 dot{L}(x::OneVec{L},y::RepVec{L}) = dot(y,x)
 dot{L,E,F,P,Q}(x::OneVec{L,E,P},y::OneVec{L,F,Q}) = P==Q?x.s*y.s:zero(x.s*y.s)
 dot{L,E,P}(x::OneVec{L,E,P},y::Vector) = chkdim(x,y) && x.s*y[P]
 
-dot(x::Vector,y::WVec) = dot(y,x)
 dot(x::Vector,y::RepVec) = dot(y,x)
 dot(x::Vector,y::OneVec) = dot(y,x)
 ###
 
-(.*){L}(x::WVec{L},y::WVec{L}) = full(x) .* full(y) 
-(.*){L}(x::WVec{L},y::RepVec{L}) = x * y.s
-(.*){L,E,P}(x::WVec{L},y::OneVec{L,E,P}) = onevec(L,P,x[P]*y.s)
-(.*)(x::WVec,y::Vector) = full(x) .* y
 
-(.*){L}(x::RepVec{L},y::WVec{L}) = .*(y,x) 
 (.*){L}(x::RepVec{L},y::RepVec{L}) = repvec(L,x.s*y.s)
 (.*){L,E,P}(x::RepVec{L},y::OneVec{L,E,P}) = onevec(L,P,x.s*y.s) 
 (.*){L}(x::RepVec{L},y::Vector) = chkdim(L,y) && x.s*y
 
-(.*){L}(x::OneVec{L},y::WVec{L}) = (.*)(y,x)
 (.*){L}(x::OneVec{L},y::RepVec{L}) = (.*)(y,x)
 (.*){L,E,F,P,Q}(x::OneVec{L,E,P},y::OneVec{L,F,Q}) = P==Q?onevec(L,P,x.s*y.s):repvec(L,zero(x.s*y.s))
 (.*){L,E,P}(x::OneVec{L,E,P},y::Vector) = chkdim(x,y) && onevec(L,P,x.s*y[P]) 
 
-(.*)(x::Vector,y::WVec) = (.*)(y,x) 
 (.*)(x::Vector,y::RepVec) = (.*)(y,x)
 (.*)(x::Vector,y::OneVec) = (.*)(y,x)
 
@@ -228,17 +200,21 @@ chkdim(A::AnyMat,b::AnyVec) = size(A,2)!=length(b)?error("dimension mismatch"):t
 
 
 ###
-immutable RankOne{M,N,E} <: CMat{M,N,E}
-  col::CVec{M,E} 
-  row::CVec{N,E}
+immutable RankOne{M,N,E,V,W} <: CMat{M,N,E}
+  col::V
+  row::W
 end
-function rankone{M,N,E,F}(col::CVec{M,E},row::CVec{N,F})
-	T = promote_type(E,F)
-	col = converte(T,col)
-	row = converte(T,row)
-	return RankOne{M,N,T}(col,row)
+function rankone{V,W}(col::V,row::W)
+  M = length(col); N = length(row)
+  if ndims(col)>1 && M == max(size(col)) col = reshape(col,M) end
+  if ndims(row)>1 && N == max(size(row)) row = reshape(row,N) end
+  if ndims(row)!=1 || ndims(col)!=1 error("illegal argument") end 
+  T = promote_type(eltype(col),eltype(row));
+  col = converte(T,col)
+  row = converte(T,row) 
+  return RankOne{M,N,T,typeof(col),typeof(row)}(col,row)
 end
-rankone(col::AnyVecOrMat,row::AnyVecOrMat) = rankone(wrap(col),wrap(row))
+
 
 isdense(R::RankOne) = isdense(R.col) && isdense(R.row)
 converte{T,M,N,E}(R::RankOne{M,N,E}) = rankone(converte(T,R.col),converte(T,R.row))
@@ -268,10 +244,10 @@ function sum{M,N}(A::RankOne,i::Int)
 end  
 
 
-
+custom_update!{E<:BlasFloat,M,N,V<:Vector}(D::Matrix{E},R::RankOne{M,N,E,V,V}) = 
+    BlasX.ger!(D,one(E),R.col,R.row)
 
 function custom_update!(D::Matrix,R::RankOne)
-    # t.b.d.: some cases could be deferred to BlasX.ger
     col = R.col; row = R.row
     ii = nzindexrange(col); jj = nzindexrange(row)
     for j in jj
@@ -313,11 +289,16 @@ trace{N}(A::RankOne{N,N}) = dot(A.col,A,row)
 
 ###
 
-immutable DiagMat{N,E} <: CMat{N,N,E}
-  d::CVec{N,E} 
+immutable DiagMat{N,E,V} <: CMat{N,N,E}
+  d::V
 end
-diagmat{E}(v::Vector{E}) = DiagMat{length(v),E}(wrap(v)) 
-diagmat{E<:Number}(n::Int,s::E=1.0) = DiagMat{n,E}(repvec(n,s)) 
+diagmat{E<:Number}(n::Int,s::E=1.0) = ( d = repvec(n,s); DiagMat{n,E,typeof(d)}(d) ) 
+diagmat{E}(v::Vector{E}) = DiagMat{length(v),E,Vector{E}}(v) 
+diagmat{E}(v::Matrix{E}) = (
+    L = length(v);
+    if L != max(size(v)) error("bad argument") end;
+    DiagMat{length(v),E,Vector{E}}(reshape(v,L)) 
+  )
 
 converte{T,N,E}(R::DiagMat{N,E}) = diagmat(converte(T,R.d))
 isdense(::DiagMat) = false
@@ -347,47 +328,6 @@ end
 
 ##
 
-immutable BlockSparse{M,N,E,P,Q,R,S} <: CMat{M,N,E}
-    # block lives in M,N matrix at P<=i<=R && Q<=j<=S
-    block::Matrix{E}
-end
-typealias IRC Union(Int,Range1,Colon)
-function blocksparse{E}(sz::(Int,Int),at::(IRC,IRC),block::Array{E}) 
-  at = map( i->isa(at[i],Colon)?(1:sz[i]):at[i], (1,2) ) #expand colons to ranges
-  #if map(length,at) != size(block) error("block does not fit") end 
-  block = reshape(block,map(length,at)) # will crash here is it doesn't fit
-  M,N = sz; P,Q = map(first,at); R,S = map(last,at) 
-  if P<1 || Q<1 || R>M || S>N error("index out of range") end 
-  if P==R && Q==1 && S==N return rankone(onevec(M,P),block) end  # single non-zero row
-  if Q==S && P==1 && R==M return rankone(block,onevec(N,Q)) end # single non-zero column
-  return BlockSparse{M,N,E,P,Q,R,S}(block)
-end
-
-blocksparse(sz::(Int,Int),at::(IRC,IRC),block::Number) = blocksparse(sz,at,[block])
-
-
-transpose{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S}) = BlockSparse{N,M,E,Q,P,S,R}(B.block.')
-sum(B::BlockSparse) = sum(B.block)
-function sum{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int) 
-    if i==1 return full(BlockSparse{1,N,E,1,Q,1,S}(sum(B.block,i))) end
-    if i==2 return full(BlockSparse{M,1,E,P,1,R,1}(sum(B.block,i))) end
-end
-
-isdense(::BlockSparse) = false
-
-getindex{M,N,E,P,Q,R,S}(B::BlockSparse{M,N,E,P,Q,R,S},i::Int,j::Int) =
-  (P<=i<=R && Q<=j<=S) ? B.block[i-P+1,j-Q+1] : 
-  (1<=i<=M&&1<=j<=N)   ? zero(E) : 
-                         error("index out of bounds") 
-
-function custom_update!{M,N,E,P,Q,R,S}(D::Matrix,B::BlockSparse{M,N,E,P,Q,R,S})
-    block = B.block;
-    ii = P:R; jj = Q:S; P1 = P-1; Q1 = Q-1;
-    for j in jj, i in ii
-      D[i,j] = D[i,j] + block[i-P1,j-Q1] 
-    end
-    return D
-end
 
 ###
 
@@ -407,15 +347,53 @@ end
 
 
 ###
-immutable EmbeddedMat{M,N,E,D,A} <: CMat{M,N,E}
+immutable ZeroPaddedMat{M,N,E,D,A} <: CMat{M,N,E}
   data::D
   at:: A
 end
-EmbeddedMat{D,A}(M::Int,N::Int,data::D,at::A) = EmbeddedMat{M,N,eltype(data),D,A}(data,at)
-isdense(::EmbeddedMat) = false
-embed(source::Matrix,at...) = embed(size(source),source[at...],at...)
-embed(sz::(Int,Int),data,at...) = EmbeddedMat(sz...,data,at)
-custom_update!(D::Array,S::EmbeddedMat) = (D[S.at...] += S.data; D)
+ZeroPaddedMat{D,A}(M::Int,N::Int,data::D,at::A) = ZeroPaddedMat{M,N,eltype(data),D,A}(data,at)
+zeropad(source::Matrix,at...) = zeropad(size(source),source[at...],at...)
+zeropad(sz::(Int,Int),data,at...) = ZeroPaddedMat(sz...,data,at)
+
+isdense(::ZeroPaddedMat) = false
+
+# default: Should work for all types of indexing, but slightly inefficient because RHS 
+#          temporary is created and then copied.
+custom_update!(D::Array,S::ZeroPaddedMat) = (D[S.at...] += S.data; D)
+
+function custom_update!{M,N,E,D}(Dest::Matrix{E},
+                                         S::ZeroPaddedMat{M,N,E,D,(Int,Int)})
+  Dest[S.at...] += S.data[1]
+  return Dest  
+end
+
+function custom_update!{M,N,E,D<:Vector,R<:Ranges}(Dest::Matrix{E},
+                                                   S::ZeroPaddedMat{M,N,E,D,(R,Int)})
+    (ii,j) = S.at; v = S.data; k=0
+    for i in ii Dest[i,j] += v[k+=1] end
+    return Dest  
+end
+
+function custom_update!{M,N,E,D<:Matrix,R<:Ranges}(Dest::Matrix{E},
+                                                   S::ZeroPaddedMat{M,N,E,D,(Int,R)})
+    (i,jj) = S.at; v = S.data; k = 0
+    @assert length(v) == size(v,2)
+    for j in jj Dest[i,j] += v[k+=1] end
+    return Dest  
+end
+
+function custom_update!{M,N,E,D<:Vector,R<:Ranges,S<:Ranges}(Dest::Matrix{E},
+                                                             S::ZeroPaddedMat{M,N,E,D,(R,S)})
+    (ii,jj) = S.at; X = S.data; n = 0
+    for j in jj
+        n+=1; m=0
+        for i in ii Dest[i,j] += X[m+=1,n] end
+    end
+    return Dest  
+end
+
+
+
 ###
 
 
